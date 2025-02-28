@@ -1,0 +1,63 @@
+// lang block
+__cs {
+	public static void HelloCS() => Console.WriteLine("lol");
+}
+
+__declspec(IGNORE) __js {
+
+}
+
+int.flags = afifi();
+
+mrkstl::hello();
+
+mrkstl::int = 9;
+
+mrkstl::int.memberTest.Ammar();
+
+int.call();
+system::int32::nestedclass.JOJ();
+
+namespace KZ::w2 {
+	class mrk {
+		class another {
+
+		}
+
+		var<int> mk;
+		var mkkk = 93;
+		var jjsjs = cs::HelloCS();
+
+		// ctor
+		mrk(this.mk, int i, int i2) {
+
+		}
+
+		// returns int
+		func mrzzz() -> int {
+
+		}
+
+		// void by default
+		func mrzz() {
+
+		}
+
+		func another(int i, int* 31, str* s = null) {
+		}
+	}
+}
+
+for (var i = 0; i < 32; i++) {
+	// whatever
+}
+
+
+
+var<KZ::w2::mrk> instance = new KZ::w2::mrk();
+
+var m = (nex()).toString("FF").kk;
+
+if (m > 2) {
+	console.log("lol m=" + m);
+}
