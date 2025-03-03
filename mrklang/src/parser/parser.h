@@ -12,24 +12,23 @@ MRK_NS_BEGIN
 
 using namespace ast;
 
-struct ParserError : MRK_STD runtime_error {
+struct ParserError : std::runtime_error {
 	Token token;
 
 	ParserError(const Token& token, Str message) 
-		: MRK_STD runtime_error(MRK_STD move(message)), token(Token(token)) {
+		: std::runtime_error(Move(message)), token(Token(token)) {
 	}
 };
 
 class Parser {
 public:
-	Parser(const Lexer* lexer);
-	UniquePtr<Program> parse();
-
-	const Vec<ParserError>& errors() const;
-
+	Parser(const Str& filename, const Lexer* lexer);
+	UniquePtr<Program> parseProgram();
+	const Vec<ParserError>& getErrors() const;
 	void reportErrors() const;
 
 private:
+	const Str filename_;
 	const Lexer* lexer_;
 	Vec<Token> tokens_;
 	uint32_t currentPos_;
@@ -37,53 +36,59 @@ private:
 	Token previous_;
 	Vec<ParserError> errors_;
 
+	// Error handling
 	[[noreturn]] ParserError error(const Token& token, const Str& message);
+	void synchronize();
+
+	// Token navigation
 	void advance();
 	bool check(TokenType type) const;
 	bool match(TokenType type);
 	Token consume(TokenType type, const Str& message);
-	void synchronize();
-	const Token& previous() const;
+	const Token& getPrevious() const;
 	const Token& peekNext() const;
 
-	/// Statements
-	UniquePtr<Statement> topLevelDecl();
-	UniquePtr<LangBlock> langBlock();
-	UniquePtr<VarDecl> varDecl(bool requireSemicolon = true);
-	UniquePtr<FunctionDecl> functionDecl();
-	UniquePtr<TypeName> parseTypeName();
-	UniquePtr<FunctionParamDecl> functionParamDecl();
-	UniquePtr<AccessModifier> accessModifier();
-	UniquePtr<Statement> statement();
-	UniquePtr<Block> block(bool consumeBrace = true);
-	UniquePtr<IfStmt> ifStatement();
-	UniquePtr<ForStmt> forStatement();
-	UniquePtr<ForeachStmt> foreachStatement();
-	UniquePtr<WhileStmt> whileStatement();
-	UniquePtr<ExprStmt> exprStatement();
-	UniquePtr<NamespaceDecl> namespaceDecl();
-	UniquePtr<DeclarationSpec> declSpecStatement();
-	UniquePtr<UseStmt> useStatement();
-	UniquePtr<EnumDecl> enumDecl();
-	UniquePtr<TypeDecl> typeDecl();
+	// Top-level declarations / Statements
+	UniquePtr<StmtNode> parseTopLevelDecl();
+	UniquePtr<LangBlockStmt> parseLangBlock();
+	UniquePtr<VarDeclStmt> parseVarDecl(bool requireSemicolon = true);
+	UniquePtr<FuncDeclStmt> parseFunctionDecl();
+	UniquePtr<TypeReferenceExpr> parseTypeReference();
+	UniquePtr<ParamDeclStmt> parseFunctionParamDecl();
+	UniquePtr<AccessModifierStmt> parseAccessModifier();
 
-	/// Expressions
-	UniquePtr<Expression> expression();
-	UniquePtr<Expression> assignment();
-	UniquePtr<Expression> ternary();
-	UniquePtr<Expression> logicalOr();
-	UniquePtr<Expression> logicalAnd();
-	UniquePtr<Expression> equality();
-	UniquePtr<Expression> comparison();
-	UniquePtr<Expression> term();
-	UniquePtr<Expression> factor();
-	UniquePtr<Expression> unary();
-	UniquePtr<Expression> primary();
-	UniquePtr<Expression> functionCall(UniquePtr<Expression> target);
-	UniquePtr<Expression> namespaceAccess(UniquePtr<Identifier> identifier);
-	UniquePtr<Expression> memberAccess(UniquePtr<Expression> target);
-	UniquePtr<Expression> array();
-	UniquePtr<Expression> interpolatedString();
+	// Statements
+	UniquePtr<StmtNode> parseStatement();
+	UniquePtr<BlockStmt> parseBlock(bool consumeBrace = true);
+	UniquePtr<IfStmt> parseIfStatement();
+	UniquePtr<ForStmt> parseForStatement();
+	UniquePtr<ForeachStmt> parseForeachStatement();
+	UniquePtr<WhileStmt> parseWhileStatement();
+	UniquePtr<ExprStmt> parseExprStatement();
+	UniquePtr<NamespaceDeclStmt> parseNamespaceDecl();
+	UniquePtr<DeclSpecStmt> parseDeclSpecStatement();
+	UniquePtr<UseStmt> parseUseStatement();
+	UniquePtr<ReturnStmt> parseReturnStatement();
+	UniquePtr<EnumDeclStmt> parseEnumDecl();
+	UniquePtr<TypeDeclStmt> parseTypeDecl();
+
+	// Expressions
+	UniquePtr<ExprNode> parseExpression();
+	UniquePtr<ExprNode> parseAssignment();
+	UniquePtr<ExprNode> parseTernary();
+	UniquePtr<ExprNode> parseLogicalOr();
+	UniquePtr<ExprNode> parseLogicalAnd();
+	UniquePtr<ExprNode> parseEquality();
+	UniquePtr<ExprNode> parseComparison();
+	UniquePtr<ExprNode> parseTerm();
+	UniquePtr<ExprNode> parseFactor();
+	UniquePtr<ExprNode> parseUnary();
+	UniquePtr<ExprNode> parsePrimary();
+	UniquePtr<ExprNode> parseFunctionCall(UniquePtr<ExprNode> target);
+	UniquePtr<ExprNode> parseNamespaceAccess(UniquePtr<IdentifierExpr> identifier);
+	UniquePtr<ExprNode> parseMemberAccess(UniquePtr<ExprNode> target);
+	UniquePtr<ExprNode> parseArray();
+	UniquePtr<ExprNode> parseInterpolatedString();
 };
 
 MRK_NS_END

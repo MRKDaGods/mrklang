@@ -109,6 +109,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,12 +137,16 @@
     <ClCompile Include="src\lexer\token_lookup.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\parser\ast.cpp" />
     <ClCompile Include="src\parser\parser.cpp" />
+    <ClCompile Include="src\semantic\symbol_collector.cpp" />
+    <ClCompile Include="src\semantic\symbol_table.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\common\logging.h" />
     <ClInclude Include="src\common\macros.h" />
     <ClInclude Include="src\common\types.h" />
+    <ClInclude Include="src\common\utils.h" />
     <ClInclude Include="src\lexer\lexer_logging.h" />
     <ClInclude Include="src\lexer\lexer_position_tree.h" />
     <ClInclude Include="src\lexer\token_lookup.h" />
@@ -149,6 +154,8 @@
     <ClInclude Include="src\lexer\token.h" />
     <ClInclude Include="src\parser\ast.h" />
     <ClInclude Include="src\parser\parser.h" />
+    <ClInclude Include="src\semantic\access_modifier.h" />
+    <ClInclude Include="src\semantic\symbol_collector.h" />
     <ClInclude Include="src\semantic\symbol_table.h" />
   </ItemGroup>
   <ItemGroup>

@@ -13,7 +13,7 @@ MRK_NS_BEGIN
  * @struct LexerPosition
  * @brief Represents the position of a token in the source code.
  */
-struct LexerPosition {
+	struct LexerPosition {
 	uint32_t index;
 	uint32_t line;
 	uint32_t column;
@@ -23,7 +23,7 @@ struct LexerPosition {
 	}
 
 	Str toString() {
-		return MRK_STD format("LexerPosition(index={}, line={}, column={})", index, line, column);
+		return std::format("LexerPosition(index={}, line={}, column={})", index, line, column);
 	}
 };
 
@@ -42,16 +42,13 @@ enum class TokenType : uint16_t {
 /**
   * @brief Converts a TokenType to its corresponding string representation.
   */
-constexpr MRK_STD string_view toString(TokenType type) {
+constexpr std::string_view toString(const TokenType& type) {
 	switch (type) {
 		#define TOKEN(x) case TokenType::x: return #x;
 		#include "token_defs.inc"
 		#undef TOKEN
 
 		default:
-			static_assert(static_cast<int>(TokenType::END_OF_FILE) == ((uint32_t)TokenType::COUNT - 1),
-				"Update toString() when adding new TokenTypes");
-
 			return "UNKNOWN";
 	}
 }
@@ -63,14 +60,12 @@ constexpr MRK_STD string_view toString(TokenType type) {
 struct Token {
 	TokenType type;
 	Str lexeme;
-	LexerPosition position;
+	LexerPosition getPosition;
 
-	Token(TokenType type, Str lexeme, LexerPosition position)
-		: type(type), lexeme(MRK_STD move(lexeme)), position(position) {
-	}
+	Token(TokenType type, Str lexeme, LexerPosition getPosition)
+		: type(type), lexeme(std::move(lexeme)), getPosition(getPosition) {}
 
-	Token() : Token(TokenType::END_OF_FILE, "", { 1u, 1u, 1u }) {
-	}
+	Token() : Token(TokenType::END_OF_FILE, "", { 1u, 1u, 1u }) {}
 
 	bool isAccessModifier() {
 		switch (type) {

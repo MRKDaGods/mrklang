@@ -19,8 +19,8 @@
 
 MRK_NS_BEGIN
 
-Lexer::Lexer(const Str& source, uint32_t maxErrors)
-	: source_(source), position_({ 0, 1, 1 }), maxErrors_(maxErrors), positionTree_(this) {
+Lexer::Lexer(const Str& getSource, uint32_t maxErrors)
+	: source_(getSource), position_({ 0, 1, 1 }), maxErrors_(maxErrors), positionTree_(this) {
 }
 
 const Vec<Token>& Lexer::tokenize() {
@@ -65,70 +65,70 @@ const Vec<Token>& Lexer::tokenize() {
 	return tokens_;
 }
 
-const Vec<LexerError>& Lexer::errors() const {
+const Vec<LexerError>& Lexer::getErrors() const {
 	return errors_;
 }
 
-const LexerPosition& Lexer::position() const {
+const LexerPosition& Lexer::getPosition() const {
 	return position_;
 }
 
-const Vec<Token>& Lexer::tokens() const {
+const Vec<Token>& Lexer::getTokens() const {
 	return tokens_;
 }
 
-const Str& Lexer::source() const {
+const Str& Lexer::getSource() const {
 	return source_;
 }
 
 void Lexer::reportErrors() const {
 	Vec<Str> lines;
-	MRK_STD istringstream sourceStream(source_);
+	std::istringstream sourceStream(source_);
 
 	Str line;
-	while (MRK_STD getline(sourceStream, line)) {
+	while (std::getline(sourceStream, line)) {
 		lines.push_back(line);
 	}
 
 	for (const auto& err : errors_) {
-		if (err.position.line > lines.size()) continue; // Skip invalid line numbers
+		if (err.getPosition.line > lines.size()) continue; // Skip invalid line numbers
 
 		// Strip leading whitespace
-		Str strippedLine = lines[err.position.line - 1];
+		Str strippedLine = lines[err.getPosition.line - 1];
 		strippedLine.erase(0, strippedLine.find_first_not_of(" \t"));
 
 		// Adjust col
-		size_t indentation = lines[err.position.line - 1].find_first_not_of(" \t");
+		size_t indentation = lines[err.getPosition.line - 1].find_first_not_of(" \t");
 		if (indentation == Str::npos) {
 			indentation = 0;
 		}
 
-		MRK_STD cerr << "Line: " << err.position.line << ", Col: " << err.position.column << "\n";
-		MRK_STD cerr << strippedLine << "\n";
+		std::cerr << "Line: " << err.getPosition.line << ", Col: " << err.getPosition.column << "\n";
+		std::cerr << strippedLine << "\n";
 
 		// Squiggles
-		int squiggleStart = MRK_STD max(0, (int)(err.position.column - 1 - indentation));
+		int squiggleStart = std::max(0, (int)(err.getPosition.column - 1 - indentation));
 
-		MRK_STD cerr << Str(squiggleStart, ' ')	// Leading spaces
+		std::cerr << Str(squiggleStart, ' ')	// Leading spaces
 			<< Str(err.length, '~')				// Squiggles
 			<< "  // Error: " << err.message << "\n\n";		// Error message
 	}
 }
 
-void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& position) {
-	tokens_.push_back({ type, MRK_STD move(lexeme), position });
+void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& getPosition) {
+	tokens_.push_back({ type, std::move(lexeme), getPosition });
 }
 
-void Lexer::addToken(TokenType type, const LexerPosition& position) {
-	tokens_.push_back({ type, "", position });
+void Lexer::addToken(TokenType type, const LexerPosition& getPosition) {
+	tokens_.push_back({ type, "", getPosition });
 }
 
-void Lexer::error(const Str& message, const LexerPosition& position, uint32_t length) {
+void Lexer::error(const Str& message, const LexerPosition& getPosition, uint32_t length) {
 	if (errors_.size() > maxErrors_) return;
 
-	errors_.push_back({ message, position, length });
+	errors_.push_back({ message, getPosition, length });
 	MRK_ERROR("Lexer error at {}:{} (length {}) - {}",
-		position.line, position.column, length, message);
+		getPosition.line, getPosition.column, length, message);
 }
 
 bool Lexer::isAtEnd() {
@@ -136,7 +136,7 @@ bool Lexer::isAtEnd() {
 }
 
 char Lexer::advance(const size_t increment) {
-	const size_t endPos = MRK_STD min(position_.index + increment, source_.size());
+	const size_t endPos = std::min(position_.index + increment, source_.size());
 
 	for (size_t i = position_.index; i < endPos; i++) {
 		if (source_[i] == '\n') {
@@ -274,12 +274,12 @@ void Lexer::readLanguageBlock() {
 	END_READ_CONTEXT();
 
 	if (depth > 0) {
-		error("Invalid language block", START_POSITION, DELTA_POSITION.index);
+		error("Invalid language parseBlock", START_POSITION, DELTA_POSITION.index);
 		return;
 	}
 
-	Str block = source_.substr(START_POSITION.index, DELTA_POSITION.index);
-	addToken(TokenType::LIT_LANG_BLOCK, block, START_POSITION);
+	Str parseBlock = source_.substr(START_POSITION.index, DELTA_POSITION.index);
+	addToken(TokenType::LIT_LANG_BLOCK, parseBlock, START_POSITION);
 
 	// __declspec(SKIP) __csharp {
 	// }
@@ -298,7 +298,7 @@ void Lexer::readOperatorOrPunctuation() {
 	// Priority is given to a valid 2 char operator
 	auto& operators = TokenLookup::operators();
 	for (auto& [opType, op] : operators) {
-		if (MRK_STD string_view(buf, op.size()) == op) {
+		if (std::string_view(buf, op.size()) == op) {
 			type = opType;
 			lexeme = op;
 
@@ -342,7 +342,7 @@ void Lexer::readComment(TokenType commentType) {
 	END_READ_CONTEXT();
 
 	if (commentType == TokenType::COMMENT_MULTI_START && !multiLineEndFound) {
-		error("Unclosed multiline comment block", START_POSITION, DELTA_POSITION.index);
+		error("Unclosed multiline comment parseBlock", START_POSITION, DELTA_POSITION.index);
 	}
 }
 
@@ -474,7 +474,7 @@ char Lexer::readCodepointEscape(int len) {
 	}
 
 	// Convert hex to codepoint
-	auto codepoint = MRK_STD stoul(hex, nullptr, 16);
+	auto codepoint = std::stoul(hex, nullptr, 16);
 	return static_cast<char>(codepoint);
 }
 
@@ -492,7 +492,7 @@ char Lexer::readOctalEscape(char first) {
 	}
 
 	// Convert octal to codepoint
-	unsigned long code = MRK_STD stoul(octal, nullptr, 8);
+	unsigned long code = std::stoul(octal, nullptr, 8);
 	if (code > 255) {
 		error("Invalid octal escape sequence", positionTree_.currentPosition(), positionTree_.deltaPosition().index);
 		return INVALID_CHAR;

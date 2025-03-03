@@ -30,6 +30,15 @@
     <ClCompile Include="src\parser\parser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\semantic\symbol_table.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\ast.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\semantic\symbol_collector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\common\macros.h">
@@ -63,6 +72,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\semantic\symbol_table.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\semantic\symbol_collector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\semantic\access_modifier.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

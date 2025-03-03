@@ -41,6 +41,7 @@ KeywordMap TokenLookup::createKeywordMap() {
         MAKE_KW(KW_DECLSPEC, __declspec),
         MAKE_KW(KW_USE, use),
         MAKE_KW(KW_FROM, from),
+        MAKE_KW(KW_GLOBAL, __global),
 
         MAKE_KW(KW_STATIC, static),
         MAKE_KW(KW_PUBLIC, public),

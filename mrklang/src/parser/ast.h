@@ -10,692 +10,480 @@
 
 MRK_NS_BEGIN_MODULE(ast)
 
+#define AST_NODE_TYPES \
+	X(Program) \
+    X(LiteralExpr) \
+    X(InterpolatedStringExpr) \
+    X(InteropCallExpr) \
+    X(IdentifierExpr) \
+    X(TypeReferenceExpr) \
+    X(CallExpr) \
+    X(BinaryExpr) \
+    X(UnaryExpr) \
+    X(TernaryExpr) \
+    X(AssignmentExpr) \
+    X(NamespaceAccessExpr) \
+    X(MemberAccessExpr) \
+    X(ArrayExpr) \
+    X(ExprStmt) \
+    X(VarDeclStmt) \
+    X(BlockStmt) \
+    X(ParamDeclStmt) \
+    X(FuncDeclStmt) \
+    X(IfStmt) \
+    X(ForStmt) \
+    X(ForeachStmt) \
+    X(WhileStmt) \
+    X(LangBlockStmt) \
+    X(AccessModifierStmt) \
+    X(NamespaceDeclStmt) \
+    X(DeclSpecStmt) \
+    X(UseStmt) \
+    X(ReturnStmt) \
+    X(EnumDeclStmt) \
+    X(TypeDeclStmt)
+
+// Forward declare all node types
+#define X(type) struct type;
+AST_NODE_TYPES
+#undef X
+
+class ASTVisitor {
+public:
+	virtual ~ASTVisitor() = default;
+
+	// Visitor interface
+	#define X(type) virtual void visit(type* node) {}
+	AST_NODE_TYPES
+	#undef X
+};
+
+#undef AST_NODE_TYPES
+
 /// Base node for expressions and statements
 struct Node {
 	/// Mapping ast to source code
 	Token&& startToken;
 
-	Node(Token&& startToken) : startToken(Move(startToken)) {
-	}
-
+	Node(Token&& startToken) : startToken(Move(startToken)) {}
 	virtual ~Node() = default;
 	virtual Str toString() const = 0;
+	virtual void accept(ASTVisitor& visitor) = 0;
 };
 
-/// Expressions
-struct Expression : Node {
-	Expression(Token startToken) : Node(Move(startToken)) { // receive a copy(incase of lval) then move it to node
-	}
+//==============================================================================
+// Expression nodes
+//==============================================================================
 
-	virtual Str toString() const override = 0;
+/// Base class for all expression nodes
+struct ExprNode : Node {
+	ExprNode(Token startToken) : Node(Move(startToken)) {}
 };
 
-struct Literal : Expression {
+/// Literal value expression (numbers, strings, etc)
+struct LiteralExpr : ExprNode {
 	Token value;
 
-	Literal(Token val) : Expression(val), value(Move(val)) {
-	}
-
-	Str toString() const override {
-		return "Literal(" + value.lexeme + ")";
-	}
+	LiteralExpr(Token val) : ExprNode(val), value(Move(val)) {}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct InterpolatedString : Expression {
-	Vec<UniquePtr<Expression>> parts;
+/// String with embedded expressions: $"Hello {name}"
+struct InterpolatedStringExpr : ExprNode {
+	Vec<UniquePtr<ExprNode>> parts;
 
-	InterpolatedString(Token&& start, Vec<UniquePtr<Expression>>&& parts) : Expression(Move(start)), parts(Move(parts)) {
-	}
+	InterpolatedStringExpr(Token&& start, Vec<UniquePtr<ExprNode>>&& parts)
+		: ExprNode(Move(start)), parts(Move(parts)) {}
 
-	Str toString() const override {
-		Str result = "InterpolatedString([";
-		for (const auto& part : parts) {
-			result += part->toString() + ", ";
-		}
-		if (!parts.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-		result += "])";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct InteropCall : Expression {
+/// Language interoperability call
+struct InteropCallExpr : ExprNode {
 	Str targetLang;
-	UniquePtr<Expression> method;
-	Vec<UniquePtr<Expression>> args;
+	UniquePtr<ExprNode> method;
+	Vec<UniquePtr<ExprNode>> args;
 
-	InteropCall(Token&& start, Str targetLang, UniquePtr<Expression> method, Vec<UniquePtr<Expression>>&& args)
-		: Expression(Move(start)), targetLang(Move(targetLang)), method(Move(method)), args(Move(args)) {
-	}
+	InteropCallExpr(Token&& start, Str targetLang, UniquePtr<ExprNode> method, Vec<UniquePtr<ExprNode>>&& args)
+		: ExprNode(Move(start)), targetLang(Move(targetLang)), method(Move(method)), args(Move(args)) {}
 
-	Str toString() const override {
-		Str result = "InteropCall(" + targetLang + ", " + method->toString() + ", [";
-		for (const auto& arg : args) {
-			result += arg->toString() + ", ";
-		}
-		if (!args.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-		result += "])";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct Identifier : Expression {
+/// Identifier expression (variable names, function names, etc)
+struct IdentifierExpr : ExprNode {
 	Str name;
 
-	// Constructor
-	Identifier(Token tok) : Expression(tok), name(Move(tok.lexeme)) {
-	}
-
-	Str toString() const override {
-		return "Identifier(" + name + ")";
-	}
+	IdentifierExpr(Token tok) : ExprNode(tok), name(Move(tok.lexeme)) {}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct TypeName : Expression { // INT***[][]
-	Vec<UniquePtr<Identifier>> identifiers; // ["csharp", "System", "Int32"] where nms=csharp::System
-	Vec<UniquePtr<TypeName>> genericArgs; // generics
+/// Type reference expression (int, string, MyClass, etc)
+struct TypeReferenceExpr : ExprNode { // INT***[][]
+	Vec<UniquePtr<IdentifierExpr>> identifiers; // ["csharp", "System", "Int32"] where nms=csharp::System
+	Vec<UniquePtr<TypeReferenceExpr>> genericArgs; // generics
 	int pointerRank;
 	int arrayRank;
 
-	TypeName(Token&& start, Vec<UniquePtr<Identifier>>&& identifiers, Vec<UniquePtr<TypeName>>&& genericArgs, int&& pointerRank, int&& arrayRank)
-		: Expression(Move(start)), identifiers(Move(identifiers)), genericArgs(Move(genericArgs)), pointerRank(Move(pointerRank)), arrayRank(Move(arrayRank)) {}
+	TypeReferenceExpr(Token&& start, Vec<UniquePtr<IdentifierExpr>>&& identifiers, Vec<UniquePtr<TypeReferenceExpr>>&& genericArgs, int&& pointerRank, int&& arrayRank)
+		: ExprNode(Move(start)), identifiers(Move(identifiers)), genericArgs(Move(genericArgs)), pointerRank(Move(pointerRank)), arrayRank(Move(arrayRank)) {}
 
-	Str toString() const override {
-		Str result = "TypeName([";
-		for (const auto& id : identifiers) {
-			result += id->toString() + ", ";
-		}
-
-		if (!identifiers.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-
-		result += "](";
-
-		for (int i = 0; i < pointerRank; i++) {
-			result += "*";
-		}
-
-		for (int i = 0; i < arrayRank; i++) {
-			result += "[]";
-		}
-
-		result += "), [";
-		for (const auto& arg : genericArgs) {
-			result += arg->toString() + ", ";
-		}
-
-		if (!genericArgs.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-
-		result += "])";
-		return result;
-	}
+	Str getTypeName() const;
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct FunctionCall : Expression {
-	UniquePtr<Expression> target;
-	Vec<UniquePtr<Expression>> arguments;
+/// Function call expression: func(arg1, arg2)
+struct CallExpr : ExprNode {
+	UniquePtr<ExprNode> target;
+	Vec<UniquePtr<ExprNode>> arguments;
 
-	FunctionCall(Token&& start, UniquePtr<Expression>&& target, Vec<UniquePtr<Expression>>&& arguments)
-		: Expression(Move(start)), target(Move(target)), arguments(Move(arguments)) {}
+	CallExpr(Token&& start, UniquePtr<ExprNode>&& target, Vec<UniquePtr<ExprNode>>&& arguments)
+		: ExprNode(Move(start)), target(Move(target)), arguments(Move(arguments)) {}
 
-	Str toString() const override {
-		Str result = "FunctionCall(" + target->toString() + ", [";
-		for (const auto& arg : arguments) {
-			result += arg->toString() + ", ";
-		}
-		if (!arguments.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-		result += "])";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct BinaryExpr : Expression {
-	UniquePtr<Expression> left;
+/// Binary expression: a + b, a * b, etc
+struct BinaryExpr : ExprNode {
+	UniquePtr<ExprNode> left;
 	Token op;
-	UniquePtr<Expression> right;
+	UniquePtr<ExprNode> right;
 
-	BinaryExpr(Token&& start, UniquePtr<Expression> left, Token op, UniquePtr<Expression> right)
-		: Expression(Move(start)), left(Move(left)), op(op), right(Move(right)) {
-	}
+	BinaryExpr(Token&& start, UniquePtr<ExprNode>&& left, Token op, UniquePtr<ExprNode>&& right)
+		: ExprNode(Move(start)), left(Move(left)), op(op), right(Move(right)) {}
 
-	Str toString() const override {
-		return "BinaryExpr(" + left->toString() + ", " + op.lexeme + ", " + right->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct UnaryExpr : Expression {
+/// Unary expression: !a, -b, etc
+struct UnaryExpr : ExprNode {
 	Token op;
-	UniquePtr<Expression> right;
+	UniquePtr<ExprNode> right;
 
-	UnaryExpr(Token&& start, Token op, UniquePtr<Expression> right)
-		: Expression(Move(start)), op(op), right(Move(right)) {
-	}
+	UnaryExpr(Token&& start, Token op, UniquePtr<ExprNode>&& right)
+		: ExprNode(Move(start)), op(op), right(Move(right)) {}
 
-	Str toString() const override {
-		return "UnaryExpr(" + op.lexeme + ", " + right->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct TernaryExpr : Expression {
-	UniquePtr<Expression> condition;
-	UniquePtr<Expression> thenBranch;
-	UniquePtr<Expression> elseBranch;
+/// Ternary expression: a ? b : c
+struct TernaryExpr : ExprNode {
+	UniquePtr<ExprNode> condition;
+	UniquePtr<ExprNode> thenBranch;
+	UniquePtr<ExprNode> elseBranch;
 
-	TernaryExpr(Token&& start, UniquePtr<Expression> condition, UniquePtr<Expression> thenBranch, UniquePtr<Expression> elseBranch)
-		: Expression(Move(start)), condition(Move(condition)), thenBranch(Move(thenBranch)), elseBranch(Move(elseBranch)) {
-	}
+	TernaryExpr(Token&& start, UniquePtr<ExprNode>&& condition, UniquePtr<ExprNode>&& thenBranch, UniquePtr<ExprNode>&& elseBranch)
+		: ExprNode(Move(start)), condition(Move(condition)), thenBranch(Move(thenBranch)), elseBranch(Move(elseBranch)) {}
 
-	Str toString() const override {
-		return "TernaryExpr(" + condition->toString() + ", " + thenBranch->toString() + ", " + elseBranch->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct AssignmentExpr : Expression {
-	UniquePtr<Expression> target;
+/// Assignment expression: a = b, a += b, etc
+struct AssignmentExpr : ExprNode {
+	UniquePtr<ExprNode> target;
 	Token op;
-	UniquePtr<Expression> value;
+	UniquePtr<ExprNode> value;
 
-	AssignmentExpr(Token&& start, UniquePtr<Expression> target, Token op, UniquePtr<Expression> value)
-		: Expression(Move(start)), target(Move(target)), op(op), value(Move(value)) {
-	}
+	AssignmentExpr(Token&& start, UniquePtr<ExprNode>&& target, Token op, UniquePtr<ExprNode>&& value)
+		: ExprNode(Move(start)), target(Move(target)), op(op), value(Move(value)) {}
 
-	Str toString() const override {
-		Str result = "AssignmentExpr(";
-		result += target->toString();
-		result += ", " + op.lexeme;
-
-		if (op.type != TokenType::OP_INCREMENT && op.type != TokenType::OP_DECREMENT) {
-			result += ", " + value->toString();
-		}
-
-		result += ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct NamespaceAccess : Expression {
-	Vec<UniquePtr<Expression>> path;
+/// Namespace access expression: a::b::c
+struct NamespaceAccessExpr : ExprNode {
+	Vec<UniquePtr<ExprNode>> path;
 
-	NamespaceAccess(Token&& start, Vec<UniquePtr<Expression>>&& path)
-		: Expression(Move(start)), path(Move(path)) {
-	}
+	NamespaceAccessExpr(Token&& start, Vec<UniquePtr<ExprNode>>&& path)
+		: ExprNode(Move(start)), path(Move(path)) {}
 
-	Str toString() const override {
-		Str result;
-		for (size_t i = 0; i < path.size(); i++) {
-			if (i > 0) result += "::";
-			result += path[i]->toString();
-		}
-		return "NamespaceAccess(" + result + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct MemberAccess : Expression {
-	UniquePtr<Expression> target;
+/// Member access expression: a.b, a->b
+struct MemberAccessExpr : ExprNode {
+	UniquePtr<ExprNode> target;
 	Token op;
-	UniquePtr<Identifier> member;
+	UniquePtr<IdentifierExpr> member;
 
-	MemberAccess(Token&& start, UniquePtr<Expression> target, Token op, UniquePtr<Identifier> member)
-		: Expression(Move(start)), target(Move(target)), op(op), member(Move(member)) {}
+	MemberAccessExpr(Token&& start, UniquePtr<ExprNode>&& target, Token op, UniquePtr<IdentifierExpr>&& member)
+		: ExprNode(Move(start)), target(Move(target)), op(op), member(Move(member)) {}
 
-	Str toString() const override {
-		return "MemberAccess(" + target->toString() + " " + op.lexeme + " " + member->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct ArrayExpr : Expression { // [expr1, expr2, etc]
-	Vec<UniquePtr<Expression>> elements;
+/// Array literal expression: [a, b, c]
+struct ArrayExpr : ExprNode { // [expr1, expr2, etc]
+	Vec<UniquePtr<ExprNode>> elements;
 
-	ArrayExpr(Token&& start, Vec<UniquePtr<Expression>>&& elements) 
-		: Expression(Move(start)), elements(Move(elements)) {
-	}
+	ArrayExpr(Token&& start, Vec<UniquePtr<ExprNode>>&& elements)
+		: ExprNode(Move(start)), elements(Move(elements)) {}
 
-	Str toString() const override {
-		Str result = "ArrayExpr([";
-		for (const auto& element : elements) {
-			result += element->toString() + ", ";
-		}
-
-		if (!elements.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-
-		result += "])";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-/// Statements
-struct Statement : Node {
-	Statement(Token startToken) : Node(Move(startToken)) { // receive a copy(incase of lval) then move it to node
-	}
+//==============================================================================
+// Statement nodes
+//==============================================================================
 
-	virtual Str toString() const override = 0;
+/// Base class for all statement nodes
+struct StmtNode : Node {
+	StmtNode(Token startToken) : Node(Move(startToken)) {}
 };
 
-struct ExprStmt : Statement {
-	UniquePtr<Expression> expr;
+/// Expression statement: expr;
+struct ExprStmt : StmtNode {
+	UniquePtr<ExprNode> expr;
 
-	ExprStmt(Token&& start, UniquePtr<Expression> expr) 
-		: Statement(Move(start)), expr(Move(expr)) {}
+	ExprStmt(Token&& start, UniquePtr<ExprNode>&& expr)
+		: StmtNode(Move(start)), expr(Move(expr)) {}
 
-	Str toString() const override {
-		return "ExprStmt(" + expr->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct VarDecl : Statement {
-	UniquePtr<TypeName> typeName;
-	UniquePtr<Identifier> name;
-	UniquePtr<Expression> initializer;
+/// Variable declaration: var x = 5;
+struct VarDeclStmt : StmtNode {
+	UniquePtr<TypeReferenceExpr> typeName;
+	UniquePtr<IdentifierExpr> name;
+	UniquePtr<ExprNode> initializer;
 
-	VarDecl(Token&& start, UniquePtr<TypeName>&& typeName, UniquePtr<Identifier>&& name, UniquePtr<Expression>&& initializer)
-		: Statement(Move(start)), typeName(Move(typeName)), name(Move(name)), initializer(Move(initializer)) {}
+	VarDeclStmt(Token&& start, UniquePtr<TypeReferenceExpr>&& typeName, UniquePtr<IdentifierExpr>&& name, UniquePtr<ExprNode>&& initializer)
+		: StmtNode(Move(start)), typeName(Move(typeName)), name(Move(name)), initializer(Move(initializer)) {}
 
-	Str toString() const override {
-		Str result = "VarDecl(";
-		if (typeName) {
-			result += typeName->toString() + " ";
-		}
-
-		result += name->toString();
-
-		if (initializer) {
-			result += " = " + initializer->toString();
-		}
-
-		result += ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct Block : Statement {
-	Vec<UniquePtr<Statement>> statements;
+/// Block statement: { stmt1; stmt2; }
+struct BlockStmt : StmtNode {
+	Vec<UniquePtr<StmtNode>> statements;
 
-	Block(Token&& start, Vec<UniquePtr<Statement>>&& statements) 
-		: Statement(Move(start)), statements(Move(statements)) {}
+	BlockStmt(Token&& start, Vec<UniquePtr<StmtNode>>&& statements)
+		: StmtNode(Move(start)), statements(Move(statements)) {}
 
-	Str toString() const override {
-		Str result = "Block([\n";
-		for (const auto& stmt : statements) {
-			result += "  " + stmt->toString() + ",\n";
-		}
-		result += "])";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct FunctionParamDecl : Statement {
-	UniquePtr<TypeName> type;
-	UniquePtr<Identifier> name;
-	UniquePtr<Expression> initializer;
+/// Function parameter declaration
+struct ParamDeclStmt : StmtNode {
+	UniquePtr<TypeReferenceExpr> type;
+	UniquePtr<IdentifierExpr> name;
+	UniquePtr<ExprNode> initializer;
 	bool isParams;
 
-	FunctionParamDecl(Token&& start, UniquePtr<TypeName>&& type, UniquePtr<Identifier>&& name, UniquePtr<Expression>&& initializer, bool isParams)
-		: Statement(Move(start)), type(Move(type)), name(Move(name)), initializer(Move(initializer)), isParams(isParams) {
-	}
+	ParamDeclStmt(Token&& start, UniquePtr<TypeReferenceExpr>&& type, UniquePtr<IdentifierExpr>&& name, UniquePtr<ExprNode>&& initializer, bool isParams)
+		: StmtNode(Move(start)), type(Move(type)), name(Move(name)), initializer(Move(initializer)), isParams(isParams) {}
 
-
-	Str toString() const override {
-		Str result = "FunctionParamDecl(";
-
-		if (type) {
-			result += type->toString() + " ";
-		}
-
-		result += name->toString();
-		if (initializer) {
-			result += " = " + initializer->toString();
-		}
-
-		if (isParams) {
-			result += ", params";
-		}
-
-		result += ")";
-		return result;
-	}
+	Str getSignature();
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct FunctionDecl : Statement {
-	UniquePtr<Identifier> name;
-	Vec<UniquePtr<FunctionParamDecl>> parameters;
-	UniquePtr<TypeName> returnType;
-	UniquePtr<Block> body;
+/// Function declaration: func name(params) -> returnType { body }
+struct FuncDeclStmt : StmtNode {
+	UniquePtr<IdentifierExpr> name;
+	Vec<UniquePtr<ParamDeclStmt>> parameters;
+	UniquePtr<TypeReferenceExpr> returnType;
+	UniquePtr<BlockStmt> body;
 
-	FunctionDecl(
+	FuncDeclStmt(
 		Token&& start,
-		UniquePtr<Identifier>&& name,
-		Vec<UniquePtr<FunctionParamDecl>>&& parameters,
-		UniquePtr<TypeName>&& returnType,
-		UniquePtr<Block>&& body)
-		: Statement(Move(start)), name(Move(name)), parameters(Move(parameters)), returnType(Move(returnType)), body(Move(body)) {}
+		UniquePtr<IdentifierExpr>&& name,
+		Vec<UniquePtr<ParamDeclStmt>>&& parameters,
+		UniquePtr<TypeReferenceExpr>&& returnType,
+		UniquePtr<BlockStmt>&& body)
+		: StmtNode(Move(start)), name(Move(name)), parameters(Move(parameters)), returnType(Move(returnType)), body(Move(body)) {}
 
-	Str toString() const override {
-		Str result = "FunctionDecl(" + name->toString() + ", [";
-		for (const auto& param : parameters) {
-			result += param->toString() + ", ";
-		}
-
-		if (!parameters.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-
-		result += "], ";
-
-		if (returnType) {
-			result += returnType->toString();
-		}
-		else {
-			result += "void";
-		}
-
-		result += ", " + body->toString() + ")";
-		return result;
-	}
+	Str getSignature() const;
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct IfStmt : Statement {
-	UniquePtr<Expression> condition;
-	UniquePtr<Block> thenBlock;
-	UniquePtr<Block> elseBlock;
+/// If statement: if (condition) { thenBlock } else { elseBlock }
+struct IfStmt : StmtNode {
+	UniquePtr<ExprNode> condition;
+	UniquePtr<BlockStmt> thenBlock;
+	UniquePtr<BlockStmt> elseBlock;
 
-	IfStmt(Token&& start, UniquePtr<Expression>&& condition, UniquePtr<Block>&& thenBlock, UniquePtr<Block>&& elseBlock)
-		: Statement(Move(start)), condition(Move(condition)), thenBlock(Move(thenBlock)), elseBlock(Move(elseBlock)) {}
+	IfStmt(Token&& start, UniquePtr<ExprNode>&& condition, UniquePtr<BlockStmt>&& thenBlock, UniquePtr<BlockStmt>&& elseBlock)
+		: StmtNode(Move(start)), condition(Move(condition)), thenBlock(Move(thenBlock)), elseBlock(Move(elseBlock)) {}
 
-	Str toString() const override {
-		Str result = "IfStmt(" + condition->toString() + ", " + thenBlock->toString();
-		if (elseBlock) {
-			result += ", " + elseBlock->toString();
-		}
-		result += ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct ForStmt : Statement {
-	UniquePtr<VarDecl> init;
-	UniquePtr<Expression> condition;
-	UniquePtr<Expression> increment;
-	UniquePtr<Block> body;
+/// For statement: for (init; condition; increment) { body }
+struct ForStmt : StmtNode {
+	UniquePtr<VarDeclStmt> init;
+	UniquePtr<ExprNode> condition;
+	UniquePtr<ExprNode> increment;
+	UniquePtr<BlockStmt> body;
 
-	ForStmt(Token&& start, UniquePtr<VarDecl>&& init, UniquePtr<Expression>&& condition, UniquePtr<Expression>&& increment, UniquePtr<Block>&& body)
-		: Statement(Move(start)), init(Move(init)), condition(Move(condition)), increment(Move(increment)), body(Move(body)) {}
+	ForStmt(Token&& start, UniquePtr<VarDeclStmt>&& init, UniquePtr<ExprNode>&& condition, UniquePtr<ExprNode>&& increment, UniquePtr<BlockStmt>&& body)
+		: StmtNode(Move(start)), init(Move(init)), condition(Move(condition)), increment(Move(increment)), body(Move(body)) {}
 
-	Str toString() const override {
-		Str result = "ForStmt(";
-
-		if (init) {
-			result += init->toString() + "; ";
-		}
-
-		if (condition) {
-			result += condition->toString() + "; ";
-		}
-
-		if (increment) {
-			result += increment->toString();
-		}
-
-		result += ", " + body->toString() + ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct ForeachStmt : Statement {
-	UniquePtr<VarDecl> variable;
-	UniquePtr<Expression> collection;
-	UniquePtr<Block> body;
+/// Foreach statement: foreach (var in collection) { body }
+struct ForeachStmt : StmtNode {
+	UniquePtr<VarDeclStmt> variable;
+	UniquePtr<ExprNode> collection;
+	UniquePtr<BlockStmt> body;
 
-	ForeachStmt(Token&& start, UniquePtr<VarDecl>&& variable, UniquePtr<Expression>&& collection, UniquePtr<Block>&& body)
-		: Statement(Move(start)), variable(Move(variable)), collection(Move(collection)), body(Move(body)) {}
+	ForeachStmt(Token&& start, UniquePtr<VarDeclStmt>&& variable, UniquePtr<ExprNode>&& collection, UniquePtr<BlockStmt>&& body)
+		: StmtNode(Move(start)), variable(Move(variable)), collection(Move(collection)), body(Move(body)) {}
 
-	Str toString() const override {
-		Str result = "ForeachStmt(";
-
-		if (variable) {
-			result += variable->toString() + ", ";
-		}
-
-		result += collection->toString() + ", ";
-		result += body->toString() + ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct WhileStmt : Statement {
-	UniquePtr<Expression> condition;
-	UniquePtr<Block> body;
+/// While statement: while (condition) { body }
+struct WhileStmt : StmtNode {
+	UniquePtr<ExprNode> condition;
+	UniquePtr<BlockStmt> body;
 
-	WhileStmt(Token&& start, UniquePtr<Expression>&& condition, UniquePtr<Block>&& body)
-		: Statement(Move(start)), condition(Move(condition)), body(Move(body)) {}
+	WhileStmt(Token&& start, UniquePtr<ExprNode>&& condition, UniquePtr<BlockStmt>&& body)
+		: StmtNode(Move(start)), condition(Move(condition)), body(Move(body)) {}
 
-	Str toString() const override {
-		return "WhileStmt(" + condition->toString() + ", " + body->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct LangBlock : Statement {
+/// Language-specific block: __cpp{ ... }, __cs{ ... }, etc.
+struct LangBlockStmt : StmtNode {
 	Str language;
 	Str rawCode;
 
-	LangBlock(Token&& start, Str&& language, Str&& rawCode)
-		: Statement(Move(start)), language(Move(language)), rawCode(Move(rawCode)) {}
-	
-	Str toString() const override {
-		return "LangBlock(" + language + ", " + rawCode + ")";
-	}
+	LangBlockStmt(Token&& start, Str&& language, Str&& rawCode)
+		: StmtNode(Move(start)), language(Move(language)), rawCode(Move(rawCode)) {}
+
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct AccessModifier : Statement {
+/// Access modifier: public, private, protected, etc.
+struct AccessModifierStmt : StmtNode {
 	Vec<Token> modifiers;
 
-	AccessModifier(Token&& start, Vec<Token>&& modifiers)
-		: Statement(Move(start)), modifiers(Move(modifiers)) {}
+	AccessModifierStmt(Token&& start, Vec<Token>&& modifiers)
+		: StmtNode(Move(start)), modifiers(Move(modifiers)) {}
 
-	Str toString() const override {
-		Str result = "AccessModifier(";
-
-		if (!modifiers.empty()) {
-			for (auto& modifier : modifiers) {
-				result += modifier.lexeme + ", ";
-			}
-
-			result.pop_back();
-			result.pop_back();
-		}
-
-		result += ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct NamespaceDecl : Statement {
-	Vec<UniquePtr<Identifier>> path;
-	UniquePtr<Block> body;
+/// Namespace declaration: namespace name { body }
+struct NamespaceDeclStmt : StmtNode {
+	Vec<UniquePtr<IdentifierExpr>> path;
+	UniquePtr<BlockStmt> body;
 
-	NamespaceDecl(Token&& start, Vec<UniquePtr<Identifier>>&& path, UniquePtr<Block> body)
-		: Statement(Move(start)), path(Move(path)), body(Move(body)) {}
+	NamespaceDeclStmt(Token&& start, Vec<UniquePtr<IdentifierExpr>>&& path, UniquePtr<BlockStmt>&& body)
+		: StmtNode(Move(start)), path(Move(path)), body(Move(body)) {}
 
-	Str toString() const override {
-		Str result = "NamespaceDecl(";
-
-		for (auto& p : path) {
-			result += p->toString() + "::";
-		}
-
-		result.pop_back();
-		result.pop_back();
-
-		result += ", " + body->toString() + ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct DeclarationSpec : Statement {
-	UniquePtr<Identifier> spec;
+/// Declaration specifier: __declspec(xxx)
+struct DeclSpecStmt : StmtNode {
+	UniquePtr<IdentifierExpr> spec;
 
-	DeclarationSpec(Token&& start, UniquePtr<Identifier>&& spec)
-		: Statement(Move(start)), spec(Move(spec)) {}
+	DeclSpecStmt(Token&& start, UniquePtr<IdentifierExpr>&& spec)
+		: StmtNode(Move(start)), spec(Move(spec)) {}
 
-	Str toString() const override {
-		return "DeclarationSpec(" + spec->toString() + ")";
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct UseStmt : Statement {
-	Vec<Vec<UniquePtr<Identifier>>> paths; // use nms1, nms2, nms3; or use nms1, nms2, nms3 from "xyz"
-	UniquePtr<Literal> file; // from "stdf.mrk"
+/// Use statement: use nms1, nms2, nms3; or use nms1, nms2, nms3 from "xyz"
+struct UseStmt : StmtNode {
+	Vec<Vec<UniquePtr<IdentifierExpr>>> paths;
+	UniquePtr<LiteralExpr> file; // from "stdf.mrk"
 
-	UseStmt(Token&& start, Vec<Vec<UniquePtr<Identifier>>>&& paths, UniquePtr<Literal>&& file)
-		: Statement(Move(start)), paths(Move(paths)), file(Move(file)) {}
+	UseStmt(Token&& start, Vec<Vec<UniquePtr<IdentifierExpr>>>&& paths, UniquePtr<LiteralExpr>&& file)
+		: StmtNode(Move(start)), paths(Move(paths)), file(Move(file)) {}
 
-	Str toString() const override {
-		Str result = "UseStmt([";
-		for (const auto& path : paths) {
-			result += "[";
-			for (const auto& id : path) {
-				result += id->toString() + ", ";
-			}
-			if (!path.empty()) {
-				result.pop_back(); // Remove trailing comma
-				result.pop_back(); // Remove trailing space
-			}
-			result += "], ";
-		}
-
-		if (!paths.empty()) {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-
-		result += "], ";
-
-		if (file) {
-			result += file->toString();
-		}
-		else {
-			result.pop_back(); // Remove trailing comma
-			result.pop_back(); // Remove trailing space
-		}
-
-		result += ")";
-		return result;
-	}
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct EnumDecl : Statement {
-	UniquePtr<Identifier> name;
-	UniquePtr<TypeName> type;
-	Vec<MRK_STD pair<UniquePtr<Identifier>, UniquePtr<Expression>>> members;
+/// Return statement: return value;
+struct ReturnStmt : StmtNode {
+	UniquePtr<ExprNode> value;
 
-	EnumDecl(
+	ReturnStmt(Token&& start, UniquePtr<ExprNode>&& value)
+		: StmtNode(Move(start)), value(Move(value)) {}
+
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
+};
+
+/// Enum declaration: enum<type> Name { Member1, Member2 = value, ... }
+struct EnumDeclStmt : StmtNode {
+	UniquePtr<IdentifierExpr> name;
+	UniquePtr<TypeReferenceExpr> type;
+	Vec<std::pair<UniquePtr<IdentifierExpr>, UniquePtr<ExprNode>>> members;
+
+	EnumDeclStmt(
 		Token&& start,
-		UniquePtr<Identifier>&& name,
-		UniquePtr<TypeName>&& type,
-		Vec<MRK_STD pair<UniquePtr<Identifier>,
-		UniquePtr<Expression>>>&& members)
-		: Statement(Move(start)), name(Move(name)), type(Move(type)), members(Move(members)) {}
+		UniquePtr<IdentifierExpr>&& name,
+		UniquePtr<TypeReferenceExpr>&& type,
+		Vec<std::pair<UniquePtr<IdentifierExpr>,
+		UniquePtr<ExprNode>>>&& members)
+		: StmtNode(Move(start)), name(Move(name)), type(Move(type)), members(Move(members)) {}
 
-    Str toString() const override {
-        Str result = "EnumDecl(" + name->toString() + ", ";
-
-        if (type) {
-            result += type->toString() + ", ";
-        } else {
-            result += "int, ";
-        }
-
-        result += "[";
-
-        for (const auto& member : members) {
-            result += "(" + member.first->toString() + ", ";
-            if (member.second) {
-                result += member.second->toString();
-            } else {
-                result += "null";
-            }
-            result += "), ";
-        }
-
-        if (!members.empty()) {
-            result.pop_back(); // Remove trailing comma
-            result.pop_back(); // Remove trailing space
-        }
-
-        result += "])";
-        return result;
-    }
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
-struct TypeDecl : Statement {
+/// Type declaration: class/struct Name<T> as Alias : Base1, Base2 { body }
+struct TypeDeclStmt : StmtNode {
 	Token type; // struct / class
-	UniquePtr<TypeName> name;
-	Vec<UniquePtr<Identifier>> aliases;
-	Vec<UniquePtr<TypeName>> baseTypes;
-	UniquePtr<Block> body;
+	UniquePtr<TypeReferenceExpr> name;
+	Vec<UniquePtr<IdentifierExpr>> aliases;
+	Vec<UniquePtr<TypeReferenceExpr>> baseTypes;
+	UniquePtr<BlockStmt> body;
 
-	TypeDecl(Token&& type, UniquePtr<TypeName>&& name, Vec<UniquePtr<Identifier>>&& aliases, Vec<UniquePtr<TypeName>>&& baseTypes, UniquePtr<Block>&& body)
-		: Statement(type), type(Move(type)), name(Move(name)), aliases(Move(aliases)), baseTypes(Move(baseTypes)), body(Move(body)) {}
+	TypeDeclStmt(
+		Token&& type,
+		UniquePtr<TypeReferenceExpr>&& name,
+		Vec<UniquePtr<IdentifierExpr>>&& aliases,
+		Vec<UniquePtr<TypeReferenceExpr>>&& baseTypes,
+		UniquePtr<BlockStmt>&& body)
+		: StmtNode(type), type(Move(type)), name(Move(name)), aliases(Move(aliases)), baseTypes(Move(baseTypes)), body(Move(body)) {}
 
 
-    Str toString() const override {
-        Str result = "TypeDecl(" + type.lexeme + ", " + name->toString() + ", [";
-        for (const auto& alias : aliases) {
-            result += alias->toString() + ", ";
-        }
-
-        if (!aliases.empty()) {
-            result.pop_back(); // Remove trailing comma
-            result.pop_back(); // Remove trailing space
-        }
-
-        result += "], [";
-
-        for (const auto& baseType : baseTypes) {
-            result += baseType->toString() + ", ";
-        }
-
-        if (!baseTypes.empty()) {
-            result.pop_back(); // Remove trailing comma
-            result.pop_back(); // Remove trailing space
-        }
-
-		result += "], [" + body->toString() + "])";
-        return result;
-    }
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
 };
 
 /// Program structure
 struct Program {
-	Vec<UniquePtr<Statement>> statements;
+	Str filename;
+	Vec<UniquePtr<StmtNode>> statements;
 
 	Program() = default;
-	Program(Vec<UniquePtr<Statement>>&& statements) : statements(Move(statements)) {}
+	Program(const Str& filename, Vec<UniquePtr<StmtNode>>&& statements)
+		: filename(filename), statements(Move(statements)) {}
 
-	Str toString() const {
-		Str result = "Program([\n";
-		for (const auto& stmt : statements) {
-			result += "  " + stmt->toString() + ",\n";
-		}
-		result += "])";
-		return result;
-	}
+	Str toString() const;
 };
 
 MRK_NS_END

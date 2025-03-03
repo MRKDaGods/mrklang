@@ -8,8 +8,8 @@
 
 MRK_NS_BEGIN
 
-using KeywordMap = MRK_STD unordered_map<TokenType, MRK_STD string>;
-using OperatorMap = MRK_STD unordered_map<TokenType, MRK_STD string>;
+using KeywordMap = std::unordered_map<TokenType, std::string>;
+using OperatorMap = std::unordered_map<TokenType, std::string>;
 
 class TokenLookup {
 public:

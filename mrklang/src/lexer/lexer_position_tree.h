@@ -8,11 +8,11 @@ class Lexer;
 
 namespace lexer_position_tree::detail {
 	struct Node {
-		LexerPosition position;
+		LexerPosition getPosition;
 		Node* parent;
 
-		Node(const LexerPosition& position, Node* const& parent) 
-			: position(position), parent(parent) {
+		Node(const LexerPosition& getPosition, Node* const& parent) 
+			: getPosition(getPosition), parent(parent) {
 		}
 	};
 }
@@ -25,7 +25,7 @@ public:
 	LexerPositionTree(const PLexer lexer);
 	~LexerPositionTree();
 
-	const LexerPosition& pushPosition(const LexerPosition& position);
+	const LexerPosition& pushPosition(const LexerPosition& getPosition);
 	const LexerPosition& pushPosition();
 	void popPosition();
 	const LexerPosition& currentPosition();

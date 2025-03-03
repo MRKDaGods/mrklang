@@ -5,21 +5,22 @@
 
 MRK_NS_BEGIN
 
-Parser::Parser(const Lexer* lexer)
-	: lexer_(lexer), tokens_(lexer->tokens()), currentPos_(0) {
+Parser::Parser(const Str& filename, const Lexer* lexer)
+	: filename_(filename), lexer_(lexer), tokens_(lexer->getTokens()), currentPos_(0) {
 	// initialize current, prev is EOF by default
 	if (!tokens_.empty()) {
 		current_ = tokens_[0];
 	}
 }
 
-UniquePtr<Program> Parser::parse() {
+UniquePtr<Program> Parser::parseProgram() {
 	auto program = MakeUnique<Program>();
+	program->filename = Move(filename_);
 
 	while (!match(TokenType::END_OF_FILE)) {
 		try {
 			// try parse top level declaration
-			auto stmt = topLevelDecl();
+			auto stmt = parseTopLevelDecl();
 			if (stmt) {
 				program->statements.push_back(Move(stmt));
 			}
@@ -36,38 +37,38 @@ UniquePtr<Program> Parser::parse() {
 	return program;
 }
 
-const Vec<ParserError>& Parser::errors() const {
+const Vec<ParserError>& Parser::getErrors() const {
 	return errors_;
 }
 
 void Parser::reportErrors() const {
 	Vec<Str> lines;
-	MRK_STD istringstream sourceStream(lexer_->source());
+	std::istringstream sourceStream(lexer_->getSource());
 	Str line;
-	while (MRK_STD getline(sourceStream, line)) {
+	while (std::getline(sourceStream, line)) {
 		lines.push_back(line);
 	}
 
 	for (const auto& err : errors_) {
-		if (err.token.position.line > lines.size()) continue; // Skip invalid line numbers
+		if (err.token.getPosition.line > lines.size()) continue; // Skip invalid line numbers
 
 		// Strip leading whitespace
-		Str strippedLine = lines[err.token.position.line - 1];
+		Str strippedLine = lines[err.token.getPosition.line - 1];
 		strippedLine.erase(0, strippedLine.find_first_not_of(" \t"));
 
 		// Adjust col
-		size_t indentation = lines[err.token.position.line - 1].find_first_not_of(" \t");
+		size_t indentation = lines[err.token.getPosition.line - 1].find_first_not_of(" \t");
 		if (indentation == Str::npos) {
 			indentation = 0;
 		}
 
-		MRK_STD cerr << "Line: " << err.token.position.line << ", Col: " << err.token.position.column << "\n";
-		MRK_STD cerr << strippedLine << "\n";
+		std::cerr << "Line: " << err.token.getPosition.line << ", Col: " << err.token.getPosition.column << "\n";
+		std::cerr << strippedLine << "\n";
 
 		// Squiggles
-		int squiggleStart = MRK_STD max(0, (int)(err.token.position.column - 1 - indentation));
+		int squiggleStart = std::max(0, (int)(err.token.getPosition.column - 1 - indentation));
 
-		MRK_STD cerr << Str(squiggleStart, ' ')	// Leading spaces
+		std::cerr << Str(squiggleStart, ' ')	// Leading spaces
 			<< Str(err.token.lexeme.size(), '~')	// Squiggles
 			<< "  // Error: " << err.what() << "\n\n";		// Error message
 	}
@@ -75,9 +76,32 @@ void Parser::reportErrors() const {
 
 ParserError Parser::error(const Token& token, const Str& message) {
 	MRK_ERROR("Parser error at {}:{} (length {}) - {}",
-		token.position.line, token.position.column, token.lexeme.size(), message);
+		token.getPosition.line, token.getPosition.column, token.lexeme.size(), message);
 
 	return ParserError(token, message);
+}
+
+void Parser::synchronize() {
+	// Recover gracefully
+	advance();
+
+	while (!check(TokenType::END_OF_FILE)) {
+		if (previous_.type == TokenType::SEMICOLON) return;
+
+		switch (current_.type) {
+			case TokenType::KW_FUNC:
+			case TokenType::KW_VAR:
+			case TokenType::KW_IF:
+			case TokenType::KW_FOR:
+			case TokenType::KW_FOREACH:
+			case TokenType::KW_WHILE:
+			case TokenType::KW_NAMESPACE:
+			case TokenType::LBRACE:
+				return;
+		}
+
+		advance();
+	}
 }
 
 void Parser::advance() {
@@ -113,30 +137,7 @@ Token Parser::consume(TokenType type, const Str& message) {
 	throw error(current_, message);
 }
 
-void Parser::synchronize() {
-	// Recover gracefully
-	advance();
-
-	while (!check(TokenType::END_OF_FILE)) {
-		if (previous_.type == TokenType::SEMICOLON) return;
-
-		switch (current_.type) {
-			case TokenType::KW_FUNC:
-			case TokenType::KW_VAR:
-			case TokenType::KW_IF:
-			case TokenType::KW_FOR:
-			case TokenType::KW_FOREACH:
-			case TokenType::KW_WHILE:
-			case TokenType::KW_NAMESPACE:
-			case TokenType::LBRACE:
-				return;
-		}
-
-		advance();
-	}
-}
-
-const Token& Parser::previous() const {
+const Token& Parser::getPrevious() const {
 	return previous_;
 }
 
@@ -145,74 +146,74 @@ const Token& Parser::peekNext() const {
 	return idx < tokens_.size() ? tokens_[idx] : Token();
 }
 
-UniquePtr<Statement> Parser::topLevelDecl() {
+UniquePtr<StmtNode> Parser::parseTopLevelDecl() {
 	// TODO: only use statement() ?
 
 	if (match(TokenType::KW_USE)) {
-		return useStatement();
+		return parseUseStatement();
 	}
 
-	return statement();
+	return parseStatement();
 }
 
-UniquePtr<LangBlock> Parser::langBlock() {
+UniquePtr<LangBlockStmt> Parser::parseLangBlock() {
 	auto startToken = previous_;
 	auto language = previous_.lexeme;
 
-	consume(TokenType::LIT_LANG_BLOCK, "Invalid language block");
+	consume(TokenType::LIT_LANG_BLOCK, "Invalid language parseBlock");
 
 	auto rawCode = previous_.lexeme;
-	return MakeUnique<LangBlock>(Move(startToken), Move(language), Move(rawCode));
+	return MakeUnique<LangBlockStmt>(Move(startToken), Move(language), Move(rawCode));
 }
 
-UniquePtr<VarDecl> Parser::varDecl(bool requireSemicolon) {
+UniquePtr<VarDeclStmt> Parser::parseVarDecl(bool requireSemicolon) {
 	auto startToken = previous_;
 
 	// var x = 9; <-- inference
 	// var<int> x = 9;
 
 	// Check for explicit type
-	UniquePtr<TypeName> typeName = nullptr;
+	UniquePtr<TypeReferenceExpr> typeName = nullptr;
 	if (match(TokenType::OP_LT)) {
-		typeName = parseTypeName();
+		typeName = parseTypeReference();
 
 		consume(TokenType::OP_GT, "Expected '>' after type");
 	}
 
 	// Consume var name
-	auto name = MakeUnique<Identifier>(
+	auto name = MakeUnique<IdentifierExpr>(
 		consume(TokenType::IDENTIFIER, "Expected variable name")
 	);
 
 	// Consume initializer if exists
-	UniquePtr<Expression> initializer = nullptr;
+	UniquePtr<ExprNode> initializer = nullptr;
 	if (match(TokenType::OP_EQ)) {
-		initializer = expression();
+		initializer = parseExpression();
 	}
 
 	if (requireSemicolon) {
 		consume(TokenType::SEMICOLON, "Expected ';' after declaration");
 	}
 
-	return MakeUnique<VarDecl>(Move(startToken), Move(typeName), Move(name), Move(initializer));
+	return MakeUnique<VarDeclStmt>(Move(startToken), Move(typeName), Move(name), Move(initializer));
 }
 
-UniquePtr<FunctionDecl> Parser::functionDecl() {
+UniquePtr<FuncDeclStmt> Parser::parseFunctionDecl() {
 	// func mrk(int m, string x = "", params string[] xz) -> int {} 
 	auto startToken = previous_;
 
 	// Parse name
-	auto name = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected function name"));
+	auto name = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected function name"));
 
 	// Consume (
 	consume(TokenType::LPAREN, "Expected '(' after function name");
 
 	// Parse params
-	Vec<UniquePtr<FunctionParamDecl>> parameters;
+	Vec<UniquePtr<ParamDeclStmt>> parameters;
 
 	if (!check(TokenType::RPAREN)) {
 		do {
-			parameters.push_back(functionParamDecl());
+			parameters.push_back(parseFunctionParamDecl());
 		} while (match(TokenType::COMMA));
 	}
 
@@ -220,39 +221,39 @@ UniquePtr<FunctionDecl> Parser::functionDecl() {
 	consume(TokenType::RPAREN, "Expected ')' after parameters");
 
 	// Parse optional return type
-	UniquePtr<TypeName> returnType = nullptr;
+	UniquePtr<TypeReferenceExpr> returnType = nullptr;
 	if (match(TokenType::OP_ARROW)) {
-		returnType = parseTypeName();
+		returnType = parseTypeReference();
 	}
 
 	// Parse body
-	auto body = block();
-	return MakeUnique<FunctionDecl>(Move(startToken), Move(name), Move(parameters), Move(returnType), Move(body));
+	auto body = parseBlock();
+	return MakeUnique<FuncDeclStmt>(Move(startToken), Move(name), Move(parameters), Move(returnType), Move(body));
 }
 
-UniquePtr<TypeName> Parser::parseTypeName() {
+UniquePtr<TypeReferenceExpr> Parser::parseTypeReference() {
 	auto startToken = current_;
 
-	Vec<UniquePtr<Identifier>> identifiers;
+	Vec<UniquePtr<IdentifierExpr>> identifiers;
 
 	// Parse identifier
 	identifiers.push_back(
-		MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected type identifier"))
+		MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected type identifier"))
 	);
 
 	// Parse namespace qualifiers if exist
 	while (match(TokenType::OP_DOUBLE_COLON)) {
 		identifiers.push_back(
-			MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected type identifier after '::'"))
+			MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected type identifier after '::'"))
 		);
 	}
 
-	Vec<UniquePtr<TypeName>> genericArgs;
+	Vec<UniquePtr<TypeReferenceExpr>> genericArgs;
 
 	// Parse generic arguments if exist (ex: "mrkstl::boxed<mrkstl::boxed<int32>>")
 	if (match(TokenType::OP_LT)) {
 		do {
-			genericArgs.push_back(parseTypeName());
+			genericArgs.push_back(parseTypeReference());
 		} while (match(TokenType::COMMA));
 
 		consume(TokenType::OP_GT, "Expected '>' after generic arguments");
@@ -271,27 +272,27 @@ UniquePtr<TypeName> Parser::parseTypeName() {
 		arrayRank++;
 	}
 
-	return MakeUnique<TypeName>(Move(startToken), Move(identifiers), Move(genericArgs), Move(pointerRank), Move(arrayRank));
+	return MakeUnique<TypeReferenceExpr>(Move(startToken), Move(identifiers), Move(genericArgs), Move(pointerRank), Move(arrayRank));
 }
 
-UniquePtr<FunctionParamDecl> Parser::functionParamDecl() {
+UniquePtr<ParamDeclStmt> Parser::parseFunctionParamDecl() {
 	// Check whether this parameter has params
 	bool isParams = match(TokenType::KW_PARAMS);
 
 	auto startToken = isParams ? previous_ : current_;
 
-	auto type = parseTypeName();
-	auto name = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected identifier"));
+	auto type = parseTypeReference();
+	auto name = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected identifier"));
 
-	UniquePtr<Expression> initializer = nullptr;
+	UniquePtr<ExprNode> initializer = nullptr;
 	if (match(TokenType::OP_EQ)) {
-		initializer = expression();
+		initializer = parseExpression();
 	}
 
-	return MakeUnique<FunctionParamDecl>(Move(startToken), Move(type), Move(name), Move(initializer), Move(isParams));
+	return MakeUnique<ParamDeclStmt>(Move(startToken), Move(type), Move(name), Move(initializer), Move(isParams));
 }
 
-UniquePtr<AccessModifier> Parser::accessModifier() {
+UniquePtr<AccessModifierStmt> Parser::parseAccessModifier() {
 	auto startToken = current_;
 
 	Vec<Token> modifiers;
@@ -301,165 +302,169 @@ UniquePtr<AccessModifier> Parser::accessModifier() {
 		advance();
 	}
 
-	return MakeUnique<AccessModifier>(Move(startToken), Move(modifiers));
+	return MakeUnique<AccessModifierStmt>(Move(startToken), Move(modifiers));
 }
 
-UniquePtr<Statement> Parser::statement() {
+UniquePtr<StmtNode> Parser::parseStatement() {
 	// Incase of nested namespaces
 	if (match(TokenType::KW_NAMESPACE)) {
-		return namespaceDecl();
+		return parseNamespaceDecl();
 	}
 
 	// check for access modifiers
 	if (current_.isAccessModifier()) {
-		return accessModifier();
+		return parseAccessModifier();
 	}
 
 	if (match(TokenType::KW_ENUM)) {
-		return enumDecl();
+		return parseEnumDecl();
 	}
 
 	if (match(TokenType::KW_CLASS) || match(TokenType::KW_STRUCT)) {
-		return typeDecl();
+		return parseTypeDecl();
 	}
 
 	if (match(TokenType::KW_FUNC)) {
-		return functionDecl();
+		return parseFunctionDecl();
 	}
 
 	if (match(TokenType::KW_VAR)) {
-		return varDecl();
+		return parseVarDecl();
 	}
 
 	if (match(TokenType::LBRACE)) {
-		return block(false);
+		return parseBlock(false);
 	}
 
 	if (match(TokenType::KW_IF)) {
-		return ifStatement();
+		return parseIfStatement();
 	}
 
 	if (match(TokenType::KW_FOR)) {
-		return forStatement();
+		return parseForStatement();
 	}
 
 	if (match(TokenType::KW_FOREACH)) {
-		return foreachStatement();
+		return parseForeachStatement();
 	}
 
 	if (match(TokenType::KW_WHILE)) {
-		return whileStatement();
+		return parseWhileStatement();
 	}
 
 	if (match(TokenType::KW_DECLSPEC)) {
-		return declSpecStatement();
+		return parseDeclSpecStatement();
+	}
+
+	if (match(TokenType::KW_RETURN)) {
+		return parseReturnStatement();
 	}
 
 	// lang blocks
 	if (match(TokenType::BLOCK_CPP) || match(TokenType::BLOCK_CSHARP) ||
 		match(TokenType::BLOCK_DART) || match(TokenType::BLOCK_JS)) {
-		return langBlock();
+		return parseLangBlock();
 	}
 
-	return exprStatement();
+	return parseExprStatement();
 }
 
-UniquePtr<Block> Parser::block(bool consumeBrace) {
+UniquePtr<BlockStmt> Parser::parseBlock(bool consumeBrace) {
 	auto startToken = consumeBrace ? current_ : previous_;
 
 	if (consumeBrace) { // Consume brace if not already consumed
-		consume(TokenType::LBRACE, "Expected '{' at beginning of block");
+		consume(TokenType::LBRACE, "Expected '{' at beginning of parseBlock");
 	}
 
-	Vec<UniquePtr<Statement>> statements;
+	Vec<UniquePtr<StmtNode>> statements;
 	while (!check(TokenType::RBRACE) && !check(TokenType::END_OF_FILE)) {
-		statements.push_back(statement());
+		statements.push_back(parseStatement());
 	}
 
-	consume(TokenType::RBRACE, "Expected '}' after block");
-	return MakeUnique<Block>(Move(startToken), Move(statements));
+	consume(TokenType::RBRACE, "Expected '}' after parseBlock");
+	return MakeUnique<BlockStmt>(Move(startToken), Move(statements));
 }
 
-UniquePtr<IfStmt> Parser::ifStatement() {
+UniquePtr<IfStmt> Parser::parseIfStatement() {
 	auto startToken = previous_;
 
 	consume(TokenType::LPAREN, "Expected '(' after if");
 
-	auto condition = expression();
+	auto condition = parseExpression();
 	consume(TokenType::RPAREN, "Expected ')' after condition");
 
-	auto thenBlock = block();
+	auto thenBlock = parseBlock();
 
-	UniquePtr<Block> elseBlock = nullptr;
+	UniquePtr<BlockStmt> elseBlock = nullptr;
 	if (match(TokenType::KW_ELSE)) {
-		elseBlock = block();
+		elseBlock = parseBlock();
 	}
 
 	return MakeUnique<IfStmt>(Move(startToken), Move(condition), Move(thenBlock), Move(elseBlock));
 }
 
-UniquePtr<ForStmt> Parser::forStatement() { // for (var<int> i = 0; i < 9999; i++)
+UniquePtr<ForStmt> Parser::parseForStatement() { // for (var<int> i = 0; i < 9999; i++)
 	auto startToken = previous_;
 	consume(TokenType::LPAREN, "Expected '(' after for");
 
 	// Initializer
-	UniquePtr<VarDecl> init = nullptr;
+	UniquePtr<VarDeclStmt> init = nullptr;
 	if (match(TokenType::KW_VAR)) {
-		init = varDecl();
+		init = parseVarDecl();
 	}
 
 	// Condition
-	UniquePtr<Expression> condition = nullptr;
+	UniquePtr<ExprNode> condition = nullptr;
 	if (!check(TokenType::SEMICOLON)) {
-		condition = expression();
+		condition = parseExpression();
 	}
 
 	consume(TokenType::SEMICOLON, "Expected ';' after for condition");
 
 	// Increment
-	UniquePtr<Expression> increment = nullptr;
+	UniquePtr<ExprNode> increment = nullptr;
 	if (!check(TokenType::RPAREN)) {
-		increment = expression();
+		increment = parseExpression();
 	}
 
 	consume(TokenType::RPAREN, "Expected ')' after for clauses");
 
-	auto body = block();
+	auto body = parseBlock();
 	return MakeUnique<ForStmt>(Move(startToken), Move(init), Move(condition), Move(increment), Move(body));
 }
 
-UniquePtr<ForeachStmt> Parser::foreachStatement() { // foreach (var x in expr()) or foreach (expr()) 
+UniquePtr<ForeachStmt> Parser::parseForeachStatement() { // foreach (var x in expr()) or foreach (expr()) 
 	auto startToken = previous_;
 	consume(TokenType::LPAREN, "Expected '(' after foreach");
 
-	UniquePtr<VarDecl> variable = nullptr;
+	UniquePtr<VarDeclStmt> variable = nullptr;
 	if (match(TokenType::KW_VAR)) {
-		variable = varDecl(false);
+		variable = parseVarDecl(false);
 		consume(TokenType::KW_IN, "Expected 'in' after variable declaration");
 	}
 
-	auto collection = expression();
+	auto collection = parseExpression();
 	consume(TokenType::RPAREN, "Expected ')' after foreach clause");
 
-	auto body = block();
+	auto body = parseBlock();
 	return MakeUnique<ForeachStmt>(Move(startToken), Move(variable), Move(collection), Move(body));
 }
 
-UniquePtr<WhileStmt> Parser::whileStatement() {
+UniquePtr<WhileStmt> Parser::parseWhileStatement() {
 	auto startToken = previous_;
 
 	consume(TokenType::LPAREN, "Expected '(' after while");
 
-	auto condition = expression();
+	auto condition = parseExpression();
 	consume(TokenType::RPAREN, "Expected ')' after condition");
 
-	auto body = block();
+	auto body = parseBlock();
 	return MakeUnique<WhileStmt>(Move(startToken), Move(condition), Move(body));
 }
 
-UniquePtr<ExprStmt> Parser::exprStatement() {
+UniquePtr<ExprStmt> Parser::parseExprStatement() {
 	auto startToken = current_;
-	auto expr = expression();
+	auto expr = parseExpression();
 
 	// Consume ;
 	consume(TokenType::SEMICOLON, "Expected ';' after expression");
@@ -467,47 +472,47 @@ UniquePtr<ExprStmt> Parser::exprStatement() {
 	return MakeUnique<ExprStmt>(Move(startToken), Move(expr));
 }
 
-UniquePtr<NamespaceDecl> Parser::namespaceDecl() {
+UniquePtr<NamespaceDeclStmt> Parser::parseNamespaceDecl() {
 	auto startToken = previous_;
 
 	// namespace xxx::xxx::xxx { }
-	Vec<UniquePtr<Identifier>> path;
+	Vec<UniquePtr<IdentifierExpr>> path;
 
 	do {
 		// Read identifier
-		path.push_back(MakeUnique<Identifier>(
+		path.push_back(MakeUnique<IdentifierExpr>(
 			consume(TokenType::IDENTIFIER, "Expected identifier"))
 		);
 	} while (match(TokenType::OP_DOUBLE_COLON));
 
 	// Namespace body
-	auto body = block();
-	return MakeUnique<NamespaceDecl>(Move(startToken), Move(path), Move(body));
+	auto body = parseBlock();
+	return MakeUnique<NamespaceDeclStmt>(Move(startToken), Move(path), Move(body));
 }
 
-UniquePtr<DeclarationSpec> Parser::declSpecStatement() {
+UniquePtr<DeclSpecStmt> Parser::parseDeclSpecStatement() {
 	auto startToken = previous_;
 
 	// __declspec(xxx)
 	consume(TokenType::LPAREN, "Expected '(' after declspec");
 
-	auto identifier = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected identifier"));
+	auto identifier = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected identifier"));
 
 	consume(TokenType::RPAREN, "Expected ')' after declspec identifier");
 
-	return MakeUnique<DeclarationSpec>(Move(startToken), Move(identifier));
+	return MakeUnique<DeclSpecStmt>(Move(startToken), Move(identifier));
 }
 
-UniquePtr<UseStmt> Parser::useStatement() {
+UniquePtr<UseStmt> Parser::parseUseStatement() {
 	auto startToken = previous_;
 
-	Vec<Vec<UniquePtr<Identifier>>> paths;
+	Vec<Vec<UniquePtr<IdentifierExpr>>> paths;
 
 	do { // NMS1::x::y, NMS2::x::y
-		Vec<UniquePtr<Identifier>> subPath;
+		Vec<UniquePtr<IdentifierExpr>> subPath;
 
 		do { // nms1::nms2::...
-			subPath.push_back(MakeUnique<Identifier>(
+			subPath.push_back(MakeUnique<IdentifierExpr>(
 				consume(TokenType::IDENTIFIER, "Expected identifier"))
 			);
 		} while (match(TokenType::OP_DOUBLE_COLON));
@@ -517,40 +522,52 @@ UniquePtr<UseStmt> Parser::useStatement() {
 	} while (match(TokenType::COMMA));
 
 	// Check if an explicit file reference is used
-	UniquePtr<Literal> file = nullptr;
+	UniquePtr<LiteralExpr> file = nullptr;
 	if (match(TokenType::KW_FROM)) {
-		file = MakeUnique<Literal>(consume(TokenType::LIT_STRING, "Expected filename"));
+		file = MakeUnique<LiteralExpr>(consume(TokenType::LIT_STRING, "Expected filename"));
 	}
 
-	consume(TokenType::SEMICOLON, "Expected ';' after use statement");
+	consume(TokenType::SEMICOLON, "Expected ';' after use parseStatement");
 	return MakeUnique<UseStmt>(Move(startToken), Move(paths), Move(file));
 }
 
-UniquePtr<EnumDecl> Parser::enumDecl() {
+UniquePtr<ReturnStmt> Parser::parseReturnStatement() {
+	auto startToken = previous_;
+
+	UniquePtr<ExprNode> value = nullptr;
+	if (!match(TokenType::SEMICOLON)) {
+		value = parseExpression();
+		consume(TokenType::SEMICOLON, "Expected ';' after return value");
+	}
+
+	return MakeUnique<ReturnStmt>(Move(startToken), Move(value));
+}
+
+UniquePtr<EnumDeclStmt> Parser::parseEnumDecl() {
 	auto startToken = previous_;
 
 	// enum<int> m { }
 
 	// Check if type is given
-	UniquePtr<TypeName> type = nullptr;
+	UniquePtr<TypeReferenceExpr> type = nullptr;
 	if (match(TokenType::OP_LT)) {
-		type = parseTypeName();
+		type = parseTypeReference();
 		consume(TokenType::OP_GT, "Expected '>'");
 	}
 
-	auto name = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected identifier"));
+	auto name = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected identifier"));
 	consume(TokenType::LBRACE, "Expected '{' after enum declaration");
 
 	// Parse members
-	decltype(EnumDecl::members) members; // Vec<MRK_STD pair<UniquePtr<Identifier>, UniquePtr<Expression>>>
+	decltype(EnumDeclStmt::members) members; // Vec<std::pair<UniquePtr<Identifier>, UniquePtr<Expression>>>
 	if (!match(TokenType::RBRACE)) {
 		do {
-			auto memberName = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected identifier"));
+			auto memberName = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected identifier"));
 
 			// Initializer?
-			UniquePtr<Expression> memberInitializer = nullptr;
+			UniquePtr<ExprNode> memberInitializer = nullptr;
 			if (match(TokenType::OP_EQ)) {
-				memberInitializer = expression();
+				memberInitializer = parseExpression();
 			}
 
 			members.push_back({ Move(memberName), Move(memberInitializer) });
@@ -559,41 +576,41 @@ UniquePtr<EnumDecl> Parser::enumDecl() {
 		consume(TokenType::RBRACE, "Expected '}' after enum members");
 	}
 
-	return MakeUnique<EnumDecl>(Move(startToken), Move(name), Move(type), Move(members));
+	return MakeUnique<EnumDeclStmt>(Move(startToken), Move(name), Move(type), Move(members));
 }
 
-UniquePtr<TypeDecl> Parser::typeDecl() {
-	auto type = previous();
+UniquePtr<TypeDeclStmt> Parser::parseTypeDecl() {
+	auto type = getPrevious();
 
 	// class xxx<> as xxx : xxx {}
-	auto name = parseTypeName();
+	auto name = parseTypeReference();
 
 	// Check for alias(es)
-	Vec<UniquePtr<Identifier>> aliases;
+	Vec<UniquePtr<IdentifierExpr>> aliases;
 	if (match(TokenType::KW_AS)) {
 		do {
-			aliases.push_back(MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected identifier")));
+			aliases.push_back(MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected identifier")));
 		} while (match(TokenType::COMMA));
 	}
 
 	// Check for base types
-	Vec<UniquePtr<TypeName>> baseTypes;
+	Vec<UniquePtr<TypeReferenceExpr>> baseTypes;
 	if (match(TokenType::COLON)) {
 		do {
-			baseTypes.push_back(parseTypeName());
+			baseTypes.push_back(parseTypeReference());
 		} while (match(TokenType::COMMA));
 	}
 
-	auto body = block();
-	return MakeUnique<TypeDecl>(Move(type), Move(name), Move(aliases), Move(baseTypes), Move(body));
+	auto body = parseBlock();
+	return MakeUnique<TypeDeclStmt>(Move(type), Move(name), Move(aliases), Move(baseTypes), Move(body));
 }
 
-UniquePtr<Expression> Parser::expression() {
-	return assignment();
+UniquePtr<ExprNode> Parser::parseExpression() {
+	return parseAssignment();
 }
 
-UniquePtr<Expression> Parser::assignment() {
-	auto expr = ternary();
+UniquePtr<ExprNode> Parser::parseAssignment() {
+	auto expr = parseTernary();
 
 	// Assignment operators (ex: "=", "+=", "-=")
 	if (match(TokenType::OP_EQ) || match(TokenType::OP_PLUS_EQ) ||
@@ -601,10 +618,10 @@ UniquePtr<Expression> Parser::assignment() {
 		match(TokenType::OP_INCREMENT) || match(TokenType::OP_DECREMENT)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		UniquePtr<Expression> value = nullptr;
+		Token op = getPrevious();
+		UniquePtr<ExprNode> value = nullptr;
 		if (op.type != TokenType::OP_INCREMENT && op.type != TokenType::OP_DECREMENT) {
-			value = assignment();
+			value = parseAssignment();
 		}
 
 		return MakeUnique<AssignmentExpr>(Move(startToken), Move(expr), op, Move(value));
@@ -613,236 +630,236 @@ UniquePtr<Expression> Parser::assignment() {
 	return expr;
 }
 
-UniquePtr<Expression> Parser::ternary() {
-	auto expr = logicalOr(); // a
+UniquePtr<ExprNode> Parser::parseTernary() {
+	auto expr = parseLogicalOr(); // a
 
 	// a ? b : c"
 	if (match(TokenType::OP_QUESTION)) {
 		auto startToken = previous_;
 
-		auto thenBranch = expression(); // b
-		consume(TokenType::COLON, "Expected ':' in ternary expression");
-		auto elseBranch = ternary(); // Right-associative: c
+		auto thenBranch = parseExpression(); // b
+		consume(TokenType::COLON, "Expected ':' in parseTernary expression");
+		auto elseBranch = parseTernary(); // Right-associative: c
 		return MakeUnique<TernaryExpr>(Move(startToken), Move(expr), Move(thenBranch), Move(elseBranch));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::logicalOr() {
-	auto expr = logicalAnd();
+UniquePtr<ExprNode> Parser::parseLogicalOr() {
+	auto expr = parseLogicalAnd();
 
 	// a || b
 	while (match(TokenType::OP_OR)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = logicalAnd();
+		Token op = getPrevious();
+		auto right = parseLogicalAnd();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::logicalAnd() {
-	auto expr = equality();
+UniquePtr<ExprNode> Parser::parseLogicalAnd() {
+	auto expr = parseEquality();
 
 	// a && b
 	while (match(TokenType::OP_AND)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = equality();
+		Token op = getPrevious();
+		auto right = parseEquality();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::equality() {
-	auto expr = comparison();
+UniquePtr<ExprNode> Parser::parseEquality() {
+	auto expr = parseComparison();
 
 	// a == b
 	while (match(TokenType::OP_EQ_EQ) || match(TokenType::OP_NOT_EQ)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = comparison();
+		Token op = getPrevious();
+		auto right = parseComparison();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::comparison() {
-	auto expr = term();
+UniquePtr<ExprNode> Parser::parseComparison() {
+	auto expr = parseTerm();
 
 	// a > b
 	while (match(TokenType::OP_GT) || match(TokenType::OP_GE) || match(TokenType::OP_LT) || match(TokenType::OP_LE)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = term();
+		Token op = getPrevious();
+		auto right = parseTerm();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::term() {
-	auto expr = factor();
+UniquePtr<ExprNode> Parser::parseTerm() {
+	auto expr = parseFactor();
 
 	// a + b
 	while (match(TokenType::OP_PLUS) || match(TokenType::OP_MINUS)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = factor();
+		Token op = getPrevious();
+		auto right = parseFactor();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::factor() {
-	auto expr = unary();
+UniquePtr<ExprNode> Parser::parseFactor() {
+	auto expr = parseUnary();
 
 	// "a * b", "a / b", "a % b"
 	while (match(TokenType::OP_ASTERISK) || match(TokenType::OP_SLASH) || match(TokenType::OP_MOD)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = unary();
+		Token op = getPrevious();
+		auto right = parseUnary();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
 	}
 
 	return expr;
 }
 
-UniquePtr<Expression> Parser::unary() {
+UniquePtr<ExprNode> Parser::parseUnary() {
 	// !a -a
 	if (match(TokenType::OP_NOT) || match(TokenType::OP_MINUS)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto right = unary(); // Right-associative: operand
+		Token op = getPrevious();
+		auto right = parseUnary(); // Right-associative: operand
 		return MakeUnique<UnaryExpr>(Move(startToken), op, Move(right));
 	}
 
-	return primary();
+	return parsePrimary();
 }
 
-UniquePtr<Expression> Parser::primary() {
+UniquePtr<ExprNode> Parser::parsePrimary() {
 	// Interpolated string
 	if (match(TokenType::INTERPOLATION)) {
-		return memberAccess(interpolatedString());
+		return parseMemberAccess(parseInterpolatedString());
 	}
 
 	// Literals
 	if (match(TokenType::LIT_INT) || match(TokenType::LIT_FLOAT) || match(TokenType::LIT_BOOL)
 		|| match(TokenType::LIT_STRING) || match(TokenType::LIT_NULL)) {
-		return MakeUnique<Literal>(previous());
+		return MakeUnique<LiteralExpr>(getPrevious());
 	}
 
 	// (a + b)
 	if (match(TokenType::LPAREN)) {
-		auto expr = expression();
+		auto expr = parseExpression();
 		consume(TokenType::RPAREN, "Expected ')' after expression");
-		return memberAccess(Move(expr));
+		return parseMemberAccess(Move(expr));
 	}
 
 	// Identifiers
 	if (match(TokenType::IDENTIFIER)) {
-		auto identifier = MakeUnique<Identifier>(previous());
+		auto identifier = MakeUnique<IdentifierExpr>(getPrevious());
 
 		if (check(TokenType::OP_DOUBLE_COLON)) {
-			return namespaceAccess(Move(identifier));
+			return parseNamespaceAccess(Move(identifier));
 		}
 
 		if (check(TokenType::LPAREN)) {
-			return functionCall(Move(identifier));
+			return parseFunctionCall(Move(identifier));
 		}
 
-		return memberAccess(Move(identifier));
+		return parseMemberAccess(Move(identifier));
 	}
 
 	// arrays, objects, etc?
 	if (match(TokenType::LBRACKET)) {
-		return memberAccess(array());
+		return parseMemberAccess(parseArray());
 	}
 
 	throw error(current_, "Expected expression");
 }
 
-UniquePtr<Expression> Parser::functionCall(UniquePtr<Expression> target) {
+UniquePtr<ExprNode> Parser::parseFunctionCall(UniquePtr<ExprNode> target) {
 	auto startToken = previous_;
 
 	// Consume (
 	consume(TokenType::LPAREN, "Expected '(' after function name");
 
 	// Parse the arguments
-	Vec<UniquePtr<Expression>> arguments;
+	Vec<UniquePtr<ExprNode>> arguments;
 	if (!check(TokenType::RPAREN)) {
 		do {
-			arguments.push_back(expression()); // Parse each argument
+			arguments.push_back(parseExpression()); // Parse each argument
 		} while (match(TokenType::COMMA));
 	}
 
 	// Consume )
 	consume(TokenType::RPAREN, "Expected ')' after arguments");
 
-	return MakeUnique<FunctionCall>(Move(startToken), Move(target), Move(arguments));
+	return MakeUnique<CallExpr>(Move(startToken), Move(target), Move(arguments));
 }
 
-UniquePtr<Expression> Parser::namespaceAccess(UniquePtr<Identifier> identifier) {
+UniquePtr<ExprNode> Parser::parseNamespaceAccess(UniquePtr<IdentifierExpr> identifier) {
 	auto startToken = previous_;
 
-	Vec<UniquePtr<Expression>> path;
+	Vec<UniquePtr<ExprNode>> path;
 	path.push_back(Move(identifier));
 
 	while (match(TokenType::OP_DOUBLE_COLON)) {
-		auto identifier = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected an identifier"));
+		auto identifier = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected an identifier"));
 
 		// Is this our last identifier?
 		if (check(TokenType::OP_DOUBLE_COLON)) {
 			path.push_back(Move(identifier));
 		}
 		else if (check(TokenType::LPAREN)) {
-			path.push_back(functionCall(Move(identifier)));
+			path.push_back(parseFunctionCall(Move(identifier)));
 		}
 		else {
-			path.push_back(memberAccess(Move(identifier)));
+			path.push_back(parseMemberAccess(Move(identifier)));
 		}
 	}
 
-	return MakeUnique<NamespaceAccess>(Move(startToken), Move(path));
+	return MakeUnique<NamespaceAccessExpr>(Move(startToken), Move(path));
 }
 
-UniquePtr<Expression> Parser::memberAccess(UniquePtr<Expression> target) {
+UniquePtr<ExprNode> Parser::parseMemberAccess(UniquePtr<ExprNode> target) {
 	while (match(TokenType::OP_DOT) || match(TokenType::OP_ARROW)) {
 		auto startToken = previous_;
 
-		Token op = previous();
-		auto member = MakeUnique<Identifier>(consume(TokenType::IDENTIFIER, "Expected member name"));
+		Token op = getPrevious();
+		auto member = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected member name"));
 
-		target = MakeUnique<MemberAccess>(Move(startToken), Move(target), op, Move(member));
+		target = MakeUnique<MemberAccessExpr>(Move(startToken), Move(target), op, Move(member));
 
 		// check if it is a function call
 		if (check(TokenType::LPAREN)) {
-			target = functionCall(Move(target));
+			target = parseFunctionCall(Move(target));
 		}
 	}
 
 	return target;
 }
 
-UniquePtr<Expression> Parser::array() {
+UniquePtr<ExprNode> Parser::parseArray() {
 	auto startToken = previous_;
 
-	Vec<UniquePtr<Expression>> elements;
+	Vec<UniquePtr<ExprNode>> elements;
 	if (!match(TokenType::RBRACKET)) {
 		do {
-			elements.push_back(expression());
+			elements.push_back(parseExpression());
 		} while (match(TokenType::COMMA));
 
 		consume(TokenType::RBRACKET, "Expected ']'");
@@ -851,13 +868,13 @@ UniquePtr<Expression> Parser::array() {
 	return MakeUnique<ArrayExpr>(Move(startToken), Move(elements));
 }
 
-UniquePtr<Expression> Parser::interpolatedString() {
+UniquePtr<ExprNode> Parser::parseInterpolatedString() {
 	auto startToken = previous_;
 
 	// Good ol' c# spec
 	auto str = consume(TokenType::LIT_STRING, "Expected string");
 
-	Vec<UniquePtr<Expression>> parts;
+	Vec<UniquePtr<ExprNode>> parts;
 
 	auto rawString = str.lexeme;
 	size_t pos = 0;
@@ -876,8 +893,8 @@ UniquePtr<Expression> Parser::interpolatedString() {
 			Lexer exprLexer(exprStr);
 			exprLexer.tokenize();
 
-			Parser exprParser(&exprLexer);
-			parts.push_back(exprParser.expression());
+			Parser exprParser("", &exprLexer);
+			parts.push_back(exprParser.parseExpression());
 
 			pos = endPos + 1;
 		}
@@ -890,13 +907,13 @@ UniquePtr<Expression> Parser::interpolatedString() {
 
 			auto literalStr = rawString.substr(pos, endPos - pos);
 			Token literalToken(TokenType::LIT_STRING, literalStr, { 1, 1, 1 });
-			parts.push_back(MakeUnique<Literal>(literalToken));
+			parts.push_back(MakeUnique<LiteralExpr>(literalToken));
 
 			pos = endPos;
 		}
 	}
 
-	return MakeUnique<InterpolatedString>(Move(startToken), Move(parts));
+	return MakeUnique<InterpolatedStringExpr>(Move(startToken), Move(parts));
 }
 
 MRK_NS_END
