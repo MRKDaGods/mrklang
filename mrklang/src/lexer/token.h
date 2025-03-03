@@ -60,10 +60,10 @@ constexpr std::string_view toString(const TokenType& type) {
 struct Token {
 	TokenType type;
 	Str lexeme;
-	LexerPosition getPosition;
+	LexerPosition position;
 
-	Token(TokenType type, Str lexeme, LexerPosition getPosition)
-		: type(type), lexeme(std::move(lexeme)), getPosition(getPosition) {}
+	Token(TokenType type, Str lexeme, LexerPosition position)
+		: type(type), lexeme(std::move(lexeme)), position(position) {}
 
 	Token() : Token(TokenType::END_OF_FILE, "", { 1u, 1u, 1u }) {}
 

@@ -19,8 +19,8 @@
 
 MRK_NS_BEGIN
 
-Lexer::Lexer(const Str& getSource, uint32_t maxErrors)
-	: source_(getSource), position_({ 0, 1, 1 }), maxErrors_(maxErrors), positionTree_(this) {
+Lexer::Lexer(const Str& source, uint32_t maxErrors)
+	: source_(source), position_({ 0, 1, 1 }), maxErrors_(maxErrors), positionTree_(this) {
 }
 
 const Vec<Token>& Lexer::tokenize() {
@@ -91,23 +91,23 @@ void Lexer::reportErrors() const {
 	}
 
 	for (const auto& err : errors_) {
-		if (err.getPosition.line > lines.size()) continue; // Skip invalid line numbers
+		if (err.position.line > lines.size()) continue; // Skip invalid line numbers
 
 		// Strip leading whitespace
-		Str strippedLine = lines[err.getPosition.line - 1];
+		Str strippedLine = lines[err.position.line - 1];
 		strippedLine.erase(0, strippedLine.find_first_not_of(" \t"));
 
 		// Adjust col
-		size_t indentation = lines[err.getPosition.line - 1].find_first_not_of(" \t");
+		size_t indentation = lines[err.position.line - 1].find_first_not_of(" \t");
 		if (indentation == Str::npos) {
 			indentation = 0;
 		}
 
-		std::cerr << "Line: " << err.getPosition.line << ", Col: " << err.getPosition.column << "\n";
+		std::cerr << "Line: " << err.position.line << ", Col: " << err.position.column << "\n";
 		std::cerr << strippedLine << "\n";
 
 		// Squiggles
-		int squiggleStart = std::max(0, (int)(err.getPosition.column - 1 - indentation));
+		int squiggleStart = std::max(0, (int)(err.position.column - 1 - indentation));
 
 		std::cerr << Str(squiggleStart, ' ')	// Leading spaces
 			<< Str(err.length, '~')				// Squiggles
@@ -115,20 +115,20 @@ void Lexer::reportErrors() const {
 	}
 }
 
-void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& getPosition) {
-	tokens_.push_back({ type, std::move(lexeme), getPosition });
+void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& position) {
+	tokens_.push_back({ type, std::move(lexeme), position });
 }
 
-void Lexer::addToken(TokenType type, const LexerPosition& getPosition) {
-	tokens_.push_back({ type, "", getPosition });
+void Lexer::addToken(TokenType type, const LexerPosition& position) {
+	tokens_.push_back({ type, "", position });
 }
 
-void Lexer::error(const Str& message, const LexerPosition& getPosition, uint32_t length) {
+void Lexer::error(const Str& message, const LexerPosition& position, uint32_t length) {
 	if (errors_.size() > maxErrors_) return;
 
-	errors_.push_back({ message, getPosition, length });
+	errors_.push_back({ message, position, length });
 	MRK_ERROR("Lexer error at {}:{} (length {}) - {}",
-		getPosition.line, getPosition.column, length, message);
+		position.line, position.column, length, message);
 }
 
 bool Lexer::isAtEnd() {
@@ -342,7 +342,7 @@ void Lexer::readComment(TokenType commentType) {
 	END_READ_CONTEXT();
 
 	if (commentType == TokenType::COMMENT_MULTI_START && !multiLineEndFound) {
-		error("Unclosed multiline comment parseBlock", START_POSITION, DELTA_POSITION.index);
+		error("Unclosed multiline comment block", START_POSITION, DELTA_POSITION.index);
 	}
 }
 

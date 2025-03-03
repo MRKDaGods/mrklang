@@ -45,8 +45,8 @@ int main() {
 
         for (auto& tok : getTokens) {
             std::cout
-                << "Line: " << std::setw(4) << std::left << tok.getPosition.line
-                << "\tColumn: " << std::setw(4) << std::left << tok.getPosition.column
+                << "Line: " << std::setw(4) << std::left << tok.position.line
+                << "\tColumn: " << std::setw(4) << std::left << tok.position.column
                 << "\tType: " << std::setw(10) << std::left << toString(tok.type)
                 << "\tLexeme: " << tok.lexeme << '\n';
         }

@@ -13,9 +13,9 @@ LexerPositionTree::~LexerPositionTree() {
 	}
 }
 
-const LexerPosition& LexerPositionTree::pushPosition(const LexerPosition& getPosition) {
-	current_ = new Node(getPosition, current_);
-	return getPosition;
+const LexerPosition& LexerPositionTree::pushPosition(const LexerPosition& position) {
+	current_ = new Node(position, current_);
+	return position;
 }
 
 const LexerPosition& LexerPositionTree::pushPosition() {
@@ -24,7 +24,7 @@ const LexerPosition& LexerPositionTree::pushPosition() {
 
 void LexerPositionTree::popPosition() {
 	if (!current_) {
-		MRK_WARN("Attempted to end getPosition with no active node");
+		MRK_WARN("Attempted to end position with no active node");
 		return;
 	}
 
@@ -35,16 +35,16 @@ void LexerPositionTree::popPosition() {
 
 const LexerPosition& LexerPositionTree::currentPosition() {
 	if (!current_) {
-		MRK_WARN("Attempted to read current getPosition with no active node");
+		MRK_WARN("Attempted to read current position with no active node");
 		return {};
 	}
 
-	return current_->getPosition;
+	return current_->position;
 }
 
 const LexerPosition& LexerPositionTree::offsetPosition(uint32_t levels) {
 	if (!current_) {
-		MRK_WARN("Attempted to offset getPosition with no active node");
+		MRK_WARN("Attempted to offset position with no active node");
 		return {};
 	}
 
@@ -54,11 +54,11 @@ const LexerPosition& LexerPositionTree::offsetPosition(uint32_t levels) {
 	}
 
 	if (!cur) {
-		MRK_WARN("Attempted to offset getPosition at an invalid node, current={} levels={}", current_->getPosition.toString(), levels);
+		MRK_WARN("Attempted to offset position at an invalid node, current={} levels={}", current_->position.toString(), levels);
 		return {};
 	}
 
-	return cur->getPosition;
+	return cur->position;
 }
 
 const LexerPosition& LexerPositionTree::parentPosition() {

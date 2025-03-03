@@ -50,23 +50,23 @@ void Parser::reportErrors() const {
 	}
 
 	for (const auto& err : errors_) {
-		if (err.token.getPosition.line > lines.size()) continue; // Skip invalid line numbers
+		if (err.token.position.line > lines.size()) continue; // Skip invalid line numbers
 
 		// Strip leading whitespace
-		Str strippedLine = lines[err.token.getPosition.line - 1];
+		Str strippedLine = lines[err.token.position.line - 1];
 		strippedLine.erase(0, strippedLine.find_first_not_of(" \t"));
 
 		// Adjust col
-		size_t indentation = lines[err.token.getPosition.line - 1].find_first_not_of(" \t");
+		size_t indentation = lines[err.token.position.line - 1].find_first_not_of(" \t");
 		if (indentation == Str::npos) {
 			indentation = 0;
 		}
 
-		std::cerr << "Line: " << err.token.getPosition.line << ", Col: " << err.token.getPosition.column << "\n";
+		std::cerr << "Line: " << err.token.position.line << ", Col: " << err.token.position.column << "\n";
 		std::cerr << strippedLine << "\n";
 
 		// Squiggles
-		int squiggleStart = std::max(0, (int)(err.token.getPosition.column - 1 - indentation));
+		int squiggleStart = std::max(0, (int)(err.token.position.column - 1 - indentation));
 
 		std::cerr << Str(squiggleStart, ' ')	// Leading spaces
 			<< Str(err.token.lexeme.size(), '~')	// Squiggles
@@ -76,7 +76,7 @@ void Parser::reportErrors() const {
 
 ParserError Parser::error(const Token& token, const Str& message) {
 	MRK_ERROR("Parser error at {}:{} (length {}) - {}",
-		token.getPosition.line, token.getPosition.column, token.lexeme.size(), message);
+		token.position.line, token.position.column, token.lexeme.size(), message);
 
 	return ParserError(token, message);
 }

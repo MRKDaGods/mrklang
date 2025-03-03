@@ -12,7 +12,7 @@ MRK_NS_BEGIN
 
 struct LexerError {
 	Str message;
-	LexerPosition getPosition;
+	LexerPosition position;
 	uint32_t length;
 };
 
@@ -21,7 +21,7 @@ class Lexer {
 public:
 	/// Constructs a Lexer with the given source string.
 	/// @param source The source string to be tokenized.
-	Lexer(const Str& getSource, uint32_t maxErrors = 10u);
+	Lexer(const Str& source, uint32_t maxErrors = 10u);
 
 	/// Tokenizes the source string.
 	/// @return A vector of tokens extracted from the source string.
@@ -64,17 +64,17 @@ private:
 	/// Adds a token to the list of tokens.
 	/// @param type The type of the token to add.
 	/// @param lexeme The lexeme (text) of the token to add.
-	void addToken(TokenType type, Str& lexeme, const LexerPosition& getPosition);
+	void addToken(TokenType type, Str& lexeme, const LexerPosition& position);
 
 	/// Adds a token to the list of tokens.
 	/// @param type The type of the token to add.
-	void addToken(TokenType type, const LexerPosition& getPosition);
+	void addToken(TokenType type, const LexerPosition& position);
 
     /// Records an error encountered during lexing.
     /// @param message The error message describing the issue.
     /// @param position The position in the source string where the error occurred.
     /// @param length The length of the erroneous text. Defaults to 1.
-    void error(const Str& message, const LexerPosition& getPosition, uint32_t length = 1);
+    void error(const Str& message, const LexerPosition& position, uint32_t length = 1);
 
 	/// Checks if the lexer has reached the end of the source string.
 	bool isAtEnd();
