@@ -4,88 +4,146 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/symbol_table.h"
+#include "core/source_file.h"
+#include "core/error_reporter.h"
+#include "core/profiler.h"
 
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <chrono>
 
 using namespace MRK_NS;
+using namespace semantic;
 
-std::string readFile(const Str& filename) {
+UniquePtr<SourceFile> readSourceFile(const Str& filename) {
+    auto file = MakeUnique<SourceFile>();
+    file->filename = filename;
+
     std::ifstream src(filename);
-    std::string content((std::istreambuf_iterator<char>(src)), std::istreambuf_iterator<char>());
-    return content;
+    if (!src.is_open()) {
+        MRK_ERROR("Failed to open file: {}", filename);
+        return nullptr;
+    }
+
+    file->contents.raw = std::string((std::istreambuf_iterator<char>(src)), std::istreambuf_iterator<char>());
+    return file;
+}
+
+bool lexFile(SourceFile* srcFile, Vec<Token>& tokens) {
+    MRK_INFO("Lexing...");
+
+    Profiler::start();
+    auto lexer = Lexer(srcFile->contents.raw);
+    lexer.tokenize();
+    tokens = Move(lexer.moveTokens());
+    auto delta = Profiler::stop();
+
+    MRK_INFO("Lexer took {} ms", delta);
+    MRK_INFO("Token count: {}", tokens.size());
+
+    for (auto& tok : tokens) {
+        std::cout
+            << "Line: " << std::setw(4) << std::left << tok.position.line
+            << "\tColumn: " << std::setw(4) << std::left << tok.position.column
+            << "\tType: " << std::setw(10) << std::left << toString(tok.type)
+            << "\tLexeme: " << tok.lexeme << '\n';
+    }
+
+    auto& errorReporter = ErrorReporter::instance();
+    if (errorReporter.hasErrors()) {
+        MRK_ERROR("\033[47;30mCompilation failed due to lexer errors in {}.\033[0m", srcFile->filename);
+        errorReporter.reportErrors();
+        return false;
+    }
+
+    return true;
+}
+
+UniquePtr<Program> parseFile(const SourceFile* sourceFile, Vec<Token>&& tokens) {
+    MRK_INFO("Parsing...");
+
+    Profiler::start();
+    auto parser = Parser(Move(tokens));
+    auto program = parser.parseProgram(sourceFile);
+    auto delta = Profiler::stop();
+
+    MRK_INFO("Parser took {} ms", delta);
+    MRK_INFO("Statement count: {}", program->statements.size());
+    std::cout << program->toString() << '\n';
+
+    auto& errorReporter = ErrorReporter::instance();
+    if (errorReporter.hasErrors()) {
+        MRK_ERROR("\033[47;30mCompilation failed due to parser errors in {}.\033[0m", sourceFile->filename);
+        errorReporter.reportErrors();
+        return nullptr;
+    }
+
+    return program;
 }
 
 int main() {
-	std::cout << "mrklang codedom alpha\n";
+    std::cout << "mrklang codedom alpha\n";
 
-    auto files = { "examples/hello.mrk", "examples/runtime.mrk" };
-
+    auto sourceFilenames = { "examples/hello.mrk", "examples/runtime.mrk" };
+    Vec<UniquePtr<SourceFile>> sourceFiles;
     Vec<UniquePtr<Program>> programs;
+    auto& errorReporter = ErrorReporter::instance();
 
-    for (const auto& filename : files) {
-        MRK_INFO("Processing {}", filename);
+    // Read all source files
+    for (const auto& filename : sourceFilenames) {
+        MRK_INFO("Reading {}", filename);
+        auto sourceFile = readSourceFile(filename);
+        if (!sourceFile) {
+            MRK_ERROR("Failed to read source file: {}", filename);
+            continue;
+        }
+        sourceFiles.push_back(Move(sourceFile));
+    }
 
-        auto getSource = readFile(filename);
-        // std::cout << "Src:\n" << "\033[47;30m" << source << "\033[0m" << "\n\n";
+    if (sourceFiles.empty()) {
+        MRK_ERROR("No valid source files found");
+        return 1;
+    }
 
-        MRK_INFO("Lexing...");
-        auto startTime = std::chrono::high_resolution_clock::now();
+    // Process each source file
+    for (const auto& src : sourceFiles) {
+        MRK_INFO("Processing {}", src->filename);
+        errorReporter.setCurrentFile(src.get());
 
-        auto lexer = Lexer(getSource);
-        auto& getTokens = lexer.tokenize();
-
-        auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::high_resolution_clock::now() - startTime).count();
-
-        MRK_INFO("Lexer took {} ms", delta);
-        MRK_INFO("Token({}):", getTokens.size());
-
-        for (auto& tok : getTokens) {
-            std::cout
-                << "Line: " << std::setw(4) << std::left << tok.position.line
-                << "\tColumn: " << std::setw(4) << std::left << tok.position.column
-                << "\tType: " << std::setw(10) << std::left << toString(tok.type)
-                << "\tLexeme: " << tok.lexeme << '\n';
+        // Lexical analysis
+        Vec<Token> tokens;
+        if (!lexFile(src.get(), tokens)) {
+            continue;
         }
 
-        if (!lexer.getErrors().empty()) {
-            MRK_ERROR("\033[47;30mCompilation failed due to lexer getErrors in {}.\033[0m\n", filename);
+        // Parsing
+        auto lexer = Lexer(src->contents.raw);
+        lexer.tokenize(); // Need to tokenize again for parser to work
+        auto program = parseFile(src.get(), Move(tokens));
 
-            lexer.reportErrors();
-            return 1;
-        }
-
-        MRK_INFO("Parsing...");
-        startTime = std::chrono::high_resolution_clock::now();
-
-        auto parser = Parser(filename, &lexer);
-        auto program = parser.parseProgram();
-
-        delta = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::high_resolution_clock::now() - startTime).count();
-
-        MRK_INFO("Parser took {} ms", delta);
-        MRK_INFO("Statements({}):", program->statements.size());
-        std::cout << program->toString() << '\n';
-
-        if (!parser.getErrors().empty()) {
-            MRK_ERROR("\033[47;30mCompilation failed due to parser getErrors in {}.\033[0m\n", filename);
-            parser.reportErrors();
-
-            return 1;
+        if (!program) {
+            continue;
         }
 
         programs.push_back(Move(program));
     }
 
-    // build symbol table
+    if (programs.empty()) {
+        MRK_ERROR("No programs successfully compiled");
+        return 1;
+    }
+
+    // Build symbol table
     MRK_INFO("Building symbol table, program count={}", programs.size());
     auto symTable = SymbolTable(Move(programs));
     symTable.build();
+	if (errorReporter.hasErrors()) {
+		MRK_ERROR("\033[47;30mCompilation failed due to semantic errors.\033[0m");
+		errorReporter.reportErrors();
+		return 1;
+	}
+
     symTable.dump();
 
-	return 0;
+    return 0;
 }

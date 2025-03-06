@@ -295,7 +295,7 @@ Str TypeDeclStmt::toString() const {
 }
 
 Str Program::toString() const {
-	Str result = Fmt("Program({})", filename);
+	Str result = Fmt("Program({})", sourceFile->filename);
 
 	if (!statements.empty()) {
 		result += " [\n";

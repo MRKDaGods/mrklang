@@ -133,6 +133,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\core\error_reporter.cpp" />
     <ClCompile Include="src\lexer\lexer_position_tree.cpp" />
     <ClCompile Include="src\lexer\token_lookup.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
@@ -143,10 +144,13 @@
     <ClCompile Include="src\semantic\symbol_table.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\core\error_reporter.h" />
     <ClInclude Include="src\common\logging.h" />
     <ClInclude Include="src\common\macros.h" />
     <ClInclude Include="src\common\types.h" />
     <ClInclude Include="src\common\utils.h" />
+    <ClInclude Include="src\core\profiler.h" />
+    <ClInclude Include="src\core\source_file.h" />
     <ClInclude Include="src\lexer\lexer_logging.h" />
     <ClInclude Include="src\lexer\lexer_position_tree.h" />
     <ClInclude Include="src\lexer\token_lookup.h" />
@@ -157,6 +161,7 @@
     <ClInclude Include="src\semantic\access_modifier.h" />
     <ClInclude Include="src\semantic\symbol_collector.h" />
     <ClInclude Include="src\semantic\symbol_table.h" />
+    <ClInclude Include="src\semantic\type_system.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="examples\hello.mrk" />

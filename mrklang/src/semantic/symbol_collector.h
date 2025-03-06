@@ -2,19 +2,22 @@
 
 #include "common/types.h"
 #include "parser/ast.h"
+#include "core/source_file.h"
 #include "access_modifier.h"
 
 #include <stack>
 
-MRK_NS_BEGIN
+MRK_NS_BEGIN_MODULE(semantic)
 
 class SymbolTable;
-class Symbol;
-class NamespaceSymbol;
+struct Symbol;
+struct NamespaceSymbol;
 
 using namespace semantic;
 using namespace ast;
 
+/// Collects symbols from an AST and populates a symbol table
+/// Also binds AST nodes to their source files
 class SymbolCollector : public ASTVisitor {
 public:
 	SymbolCollector(SymbolTable* symbolTable);
@@ -57,11 +60,12 @@ private:
 	SymbolTable* symbolTable_;
 	Symbol* currentScope_;
 	NamespaceSymbol* currentNamespace_;
-	Str currentFile_;
+	const SourceFile* currentFile_;
 	AccessModifier currentModifiers_;
 	Str currentDeclSpec_;
 	std::stack<Symbol*> scopeStack_;
 
+	void bindSourceFile(ast::Node* node);
 	void pushScope(Symbol* scope);
 	void popScope();
 	void resetModifiers();

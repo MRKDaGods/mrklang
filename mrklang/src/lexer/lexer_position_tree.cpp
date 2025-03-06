@@ -4,8 +4,8 @@
 
 MRK_NS_BEGIN
 
-LexerPositionTree::LexerPositionTree(const PLexer lexer) : lexer_(lexer), current_(nullptr) {
-}
+LexerPositionTree::LexerPositionTree(const PLexer lexer)
+	: lexer_(lexer), current_(nullptr) {}
 
 LexerPositionTree::~LexerPositionTree() {
 	while (current_) {

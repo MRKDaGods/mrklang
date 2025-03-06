@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-MRK_NS_BEGIN
+MRK_NS_BEGIN_MODULE(semantic)
 
 SymbolCollector::SymbolCollector(SymbolTable* symbolTable)
 	: symbolTable_(symbolTable), currentNamespace_(nullptr), currentScope_(nullptr), currentModifiers_(AccessModifier::NONE) {}
@@ -12,9 +12,9 @@ SymbolCollector::SymbolCollector(SymbolTable* symbolTable)
 /// Visit a Program node - entry point for processing a file
 void SymbolCollector::visit(Program* node) {
 	// Update namespace
-	currentNamespace_ = symbolTable_->declareFileScope(node->filename);
+	currentNamespace_ = symbolTable_->declareFileScope(node->sourceFile->filename);
 	currentScope_ = currentNamespace_;
-	currentFile_ = node->filename;
+	currentFile_ = node->sourceFile;
 
 	// Reset modifiers at the start of a file
 	resetModifiers();
@@ -31,28 +31,40 @@ void SymbolCollector::visit(Program* node) {
 }
 
 void SymbolCollector::visit(LiteralExpr* node) {
+	bindSourceFile(node);
+
 	// None
 }
 
 void SymbolCollector::visit(InterpolatedStringExpr* node) {
+	bindSourceFile(node);
+
 	for (const auto& part : node->parts) {
 		part->accept(*this);
 	}
 }
 
 void SymbolCollector::visit(InteropCallExpr* node) {
+	bindSourceFile(node);
+
 	// TODO: impl
 }
 
 void SymbolCollector::visit(IdentifierExpr* node) {
+	bindSourceFile(node);
+
 	// None
 }
 
 void SymbolCollector::visit(TypeReferenceExpr* node) {
+	bindSourceFile(node);
+
 	// None
 }
 
 void SymbolCollector::visit(CallExpr* node) {
+	bindSourceFile(node);
+
 	if (node->target) {
 		node->target->accept(*this);
 	}
@@ -63,21 +75,29 @@ void SymbolCollector::visit(CallExpr* node) {
 }
 
 void SymbolCollector::visit(BinaryExpr* node) {
+	bindSourceFile(node);
+
 	node->left->accept(*this);
 	node->right->accept(*this);
 }
 
 void SymbolCollector::visit(UnaryExpr* node) {
+	bindSourceFile(node);
+
 	node->right->accept(*this);
 }
 
 void SymbolCollector::visit(TernaryExpr* node) {
+	bindSourceFile(node);
+
 	node->condition->accept(*this);
 	node->thenBranch->accept(*this);
 	node->elseBranch->accept(*this);
 }
 
 void SymbolCollector::visit(AssignmentExpr* node) {
+	bindSourceFile(node);
+
 	node->target->accept(*this);
 
 	if (node->value) {
@@ -86,26 +106,43 @@ void SymbolCollector::visit(AssignmentExpr* node) {
 }
 
 void SymbolCollector::visit(NamespaceAccessExpr* node) {
+	bindSourceFile(node);
+
 	for (const auto& part : node->path) {
 		part->accept(*this);
 	}
 }
 
 void SymbolCollector::visit(MemberAccessExpr* node) {
+	bindSourceFile(node);
+
 	node->target->accept(*this);
 }
 
 void SymbolCollector::visit(ArrayExpr* node) {
+	bindSourceFile(node);
+
 	for (const auto& elem : node->elements) {
 		elem->accept(*this);
 	}
 }
 
 void SymbolCollector::visit(ExprStmt* node) {
+	bindSourceFile(node);
+
 	node->expr->accept(*this);
 }
 
 void SymbolCollector::visit(VarDeclStmt* node) {
+	bindSourceFile(node);
+
+	// Check for const initialization
+	if (detail::isCONST(currentModifiers_) && !node->initializer) {
+		symbolTable_->error(node, "Const variable must be initialized");
+		resetModifiers();
+		return;
+	}
+
 	auto typeName = node->typeName ? node->typeName->getTypeName() : "object";
 	auto varName = node->name->name;
 
@@ -131,6 +168,8 @@ void SymbolCollector::visit(VarDeclStmt* node) {
 }
 
 void SymbolCollector::visit(BlockStmt* node) {
+	bindSourceFile(node);
+
 	auto blockName = "block_" + std::to_string(reinterpret_cast<uintptr_t>(node));
 	auto blockSymbol = MakeUnique<BlockSymbol>(Move(blockName), currentScope_, node);
 	
@@ -157,13 +196,29 @@ void SymbolCollector::visit(BlockStmt* node) {
 }
 
 void SymbolCollector::visit(ParamDeclStmt* node) {
+	bindSourceFile(node);
+
 	// Processed by FuncDeclStmt
 }
 
 void SymbolCollector::visit(FuncDeclStmt* node) {
+	bindSourceFile(node);
+
 	// Collect parameters
+	bool hasVarargs = false; // Varargs must be last parameter
+
 	Dict<Str, UniquePtr<FunctionParameterSymbol>> params;
 	for (const auto& param : node->parameters) {
+		if (hasVarargs) {
+			symbolTable_->error(param.get(), "Varargs must be the last parameter");
+			resetModifiers();
+			return;
+		}
+
+		if (param->isParams) {
+			hasVarargs = true;
+		}
+
 		auto paramSymbol = MakeUnique<FunctionParameterSymbol>(
 			param->name->name,
 			param->type->getTypeName(),
@@ -208,6 +263,8 @@ void SymbolCollector::visit(FuncDeclStmt* node) {
 }
 
 void SymbolCollector::visit(IfStmt* node) {
+	bindSourceFile(node);
+
 	node->condition->accept(*this);
 	node->thenBlock->accept(*this);
 
@@ -217,6 +274,8 @@ void SymbolCollector::visit(IfStmt* node) {
 }
 
 void SymbolCollector::visit(ForStmt* node) {
+	bindSourceFile(node);
+
 	if (node->init) {
 		node->init->accept(*this);
 	}
@@ -231,32 +290,97 @@ void SymbolCollector::visit(ForStmt* node) {
 }
 
 void SymbolCollector::visit(ForeachStmt* node) {
+	bindSourceFile(node);
+
 	node->variable->accept(*this);
 	node->collection->accept(*this);
 	node->body->accept(*this);
 }
 
 void SymbolCollector::visit(WhileStmt* node) {
+	bindSourceFile(node);
+
 	node->condition->accept(*this);
 	node->body->accept(*this);
 }
 
 void SymbolCollector::visit(LangBlockStmt* node) {
+	bindSourceFile(node);
+
 	// Untracked
 }
 
 void SymbolCollector::visit(AccessModifierStmt* node) {
-	// To be consumed by next declaration
-	AccessModifier modifiers = AccessModifier::NONE;
+	bindSourceFile(node);
+
+	// Validate modifiers
+	// Ensure no duplicates and no conflicts
+	bool hasError = false;
+	Str errorMsg;
+
 	for (const auto& token : node->modifiers) {
-		modifiers = modifiers | detail::parseAccessModifier(token.lexeme);
+		auto modifier = detail::parseAccessModifier(token.lexeme);
+
+		if (detail::hasFlag(currentModifiers_, modifier)) {
+			errorMsg = "Duplicate modifier: " + token.lexeme;
+			hasError = true;
+			break;
+		}
+
+		if (detail::hasFlag(currentModifiers_, AccessModifier::PRIVATE) && detail::hasFlag(modifier, AccessModifier::PROTECTED)) {
+			errorMsg = "Cannot have both private and protected modifiers";
+			hasError = true;
+			break;
+		}
+
+		if (detail::hasFlag(currentModifiers_, AccessModifier::PROTECTED) && detail::hasFlag(modifier, AccessModifier::PRIVATE)) {
+			errorMsg = "Cannot have both protected and private modifiers";
+			hasError = true;
+			break;
+		}
+
+		if (detail::hasFlag(currentModifiers_, AccessModifier::PUBLIC) && detail::hasFlag(modifier, AccessModifier::PRIVATE)) {
+			errorMsg = "Cannot have both public and private modifiers";
+			hasError = true;
+			break;
+		}
+
+		if (detail::hasFlag(currentModifiers_, AccessModifier::PUBLIC) && detail::hasFlag(modifier, AccessModifier::PROTECTED)) {
+			errorMsg = "Cannot have both public and protected modifiers";
+			hasError = true;
+			break;
+		}
+
+		if (detail::hasFlag(currentModifiers_, AccessModifier::PROTECTED) && detail::hasFlag(modifier, AccessModifier::PUBLIC)) {
+			errorMsg = "Cannot have both protected and public modifiers";
+			hasError = true;
+			break;
+		}
+
+		currentModifiers_ = currentModifiers_ | modifier;
 	}
 
-	currentModifiers_ = modifiers;
+	// Report error if any, and reset modifiers
+	if (hasError) {
+		symbolTable_->error(node, errorMsg);
+		resetModifiers();
+
+		currentModifiers_ = AccessModifier::NONE;
+	}
 }
 
 
 void SymbolCollector::visit(NamespaceDeclStmt* node) {
+	bindSourceFile(node);
+
+	// Namespaces may only be declared at global scope or within another namespace
+	if (currentScope_->kind != SymbolKind::NAMESPACE && 
+		symbolTable_->findFirstNonImplicitParent(currentScope_)->kind != SymbolKind::NAMESPACE) {
+		symbolTable_->error(node, "Namespace can only be declared at global scope or within another namespace");
+		resetModifiers();
+		return;
+	}
+
 	// Save current namespace
 	auto prevNamespace = currentNamespace_;
 
@@ -286,20 +410,37 @@ void SymbolCollector::visit(NamespaceDeclStmt* node) {
 }
 
 void SymbolCollector::visit(DeclSpecStmt* node) {
+	bindSourceFile(node);
+
 	currentDeclSpec_ = node->spec->name;
 }
 
 void SymbolCollector::visit(UseStmt* node) {
+	bindSourceFile(node);
+
 	// Do we add import symbols?
 }
 
 void SymbolCollector::visit(ReturnStmt* node) {
+	bindSourceFile(node);
+
 	if (node->value) {
 		node->value->accept(*this);
 	}
 }
 
 void SymbolCollector::visit(EnumDeclStmt* node) {
+	bindSourceFile(node);
+
+	// Enums may not exist within a function or an interface
+	// Ali is bronze
+	if (currentScope_->kind == SymbolKind::FUNCTION || currentScope_->kind == SymbolKind::INTERFACE || 
+		symbolTable_->findAncestorOfKind(currentScope_, SymbolKind::FUNCTION | SymbolKind::INTERFACE)) {
+		symbolTable_->error(node, "Enums may not exist within a function or an interface");
+		resetModifiers();
+		return;
+	}
+
 	auto enumSymbol = MakeUnique<EnumSymbol>(
 		node->name->name,
 		currentScope_,
@@ -330,6 +471,8 @@ void SymbolCollector::visit(EnumDeclStmt* node) {
 }
 
 void SymbolCollector::visit(TypeDeclStmt* node) {
+	bindSourceFile(node);
+
 	UniquePtr<Symbol> typeSymbol;
 	Symbol* typePtr = nullptr;
 
@@ -351,8 +494,17 @@ void SymbolCollector::visit(TypeDeclStmt* node) {
 
 		typePtr = typeSymbol.get();
 	}
+	else if (node->type.lexeme == "interface") {
+		typeSymbol = MakeUnique<InterfaceSymbol>(
+			node->name->getTypeName(),
+			currentScope_,
+			node
+		);
+
+		typePtr = typeSymbol.get();
+	}
 	else { // shouldnt happen
-		throw std::runtime_error("Invalid type declaration");
+		std::_Xruntime_error("Invalid type declaration");
 	}
 
 	// Add modifiers
@@ -371,6 +523,10 @@ void SymbolCollector::visit(TypeDeclStmt* node) {
 
 	// Pop type scope
 	popScope();
+}
+
+void SymbolCollector::bindSourceFile(ast::Node* node) {
+	node->sourceFile = currentFile_;
 }
 
 void SymbolCollector::pushScope(Symbol* scope) {

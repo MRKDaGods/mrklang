@@ -25,7 +25,9 @@ KeywordMap TokenLookup::createKeywordMap() {
 		MAKE_KW(KW_CLASS, class),
         MAKE_KW(KW_STRUCT, struct),
         MAKE_KW(KW_ENUM, enum),
-		MAKE_KW(KW_VAR, var),
+		MAKE_KW(KW_INTERFACE, interface),
+        MAKE_KW(KW_VAR, var),
+
 		MAKE_KW(KW_IF, if),
 		MAKE_KW(KW_ELSE, else),
 		MAKE_KW(KW_FOR, for),
@@ -43,12 +45,21 @@ KeywordMap TokenLookup::createKeywordMap() {
         MAKE_KW(KW_FROM, from),
         MAKE_KW(KW_GLOBAL, __global),
 
-        MAKE_KW(KW_STATIC, static),
-        MAKE_KW(KW_PUBLIC, public),
-        MAKE_KW(KW_PRIVATE, private),
-        MAKE_KW(KW_PROTECTED, protected),
-        MAKE_KW(KW_VIRTUAL, virtual),
-        MAKE_KW(KW_OVERRIDE, override),
+		MAKE_KW(KW_PUBLIC, public),
+		MAKE_KW(KW_PROTECTED, protected),
+		MAKE_KW(KW_PRIVATE, private),
+		MAKE_KW(KW_INTERNAL, internal),
+		MAKE_KW(KW_STATIC, static),
+		MAKE_KW(KW_ABSTRACT, abstract),
+		MAKE_KW(KW_SEALED, sealed),
+		MAKE_KW(KW_VIRTUAL, virtual),
+		MAKE_KW(KW_OVERRIDE, override),
+		MAKE_KW(KW_CONST, const),
+		MAKE_KW(KW_READONLY, readonly),
+		MAKE_KW(KW_EXTERN, extern),
+		MAKE_KW(KW_IMPLICIT, implicit),
+		MAKE_KW(KW_EXPLICIT, explicit),
+		MAKE_KW(KW_ASYNC, async),
 
         MAKE_KW(LIT_NULL, null)
 	};

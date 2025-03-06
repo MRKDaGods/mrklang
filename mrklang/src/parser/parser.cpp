@@ -5,17 +5,16 @@
 
 MRK_NS_BEGIN
 
-Parser::Parser(const Str& filename, const Lexer* lexer)
-	: filename_(filename), lexer_(lexer), tokens_(lexer->getTokens()), currentPos_(0) {
+Parser::Parser(Vec<Token>&& tokens) : tokens_(Move(tokens)), currentPos_(0) {
 	// initialize current, prev is EOF by default
 	if (!tokens_.empty()) {
 		current_ = tokens_[0];
 	}
 }
 
-UniquePtr<Program> Parser::parseProgram() {
+UniquePtr<Program> Parser::parseProgram(const SourceFile* sourceFile) {
 	auto program = MakeUnique<Program>();
-	program->filename = Move(filename_);
+	program->sourceFile = sourceFile;
 
 	while (!match(TokenType::END_OF_FILE)) {
 		try {
@@ -25,60 +24,25 @@ UniquePtr<Program> Parser::parseProgram() {
 				program->statements.push_back(Move(stmt));
 			}
 		}
-		catch (const ParserError& err) {
+		catch (const CompilerError*& err) {
 			 // recover
 			synchronize();
-
-			// save for future analysis
-			errors_.push_back(err);
+		}
+		catch (const std::exception& e) {
+			// unrecoverable error
+			MRK_ERROR("Unrecoverable error: {}", e.what());
+			break;
 		}
 	}
 
 	return program;
 }
 
-const Vec<ParserError>& Parser::getErrors() const {
-	return errors_;
-}
+CompilerError* Parser::error(const Token& token, const Str& message) {
+	CompilerError* err;
+	ErrorReporter::instance().parserError(message, token, &err);
 
-void Parser::reportErrors() const {
-	Vec<Str> lines;
-	std::istringstream sourceStream(lexer_->getSource());
-	Str line;
-	while (std::getline(sourceStream, line)) {
-		lines.push_back(line);
-	}
-
-	for (const auto& err : errors_) {
-		if (err.token.position.line > lines.size()) continue; // Skip invalid line numbers
-
-		// Strip leading whitespace
-		Str strippedLine = lines[err.token.position.line - 1];
-		strippedLine.erase(0, strippedLine.find_first_not_of(" \t"));
-
-		// Adjust col
-		size_t indentation = lines[err.token.position.line - 1].find_first_not_of(" \t");
-		if (indentation == Str::npos) {
-			indentation = 0;
-		}
-
-		std::cerr << "Line: " << err.token.position.line << ", Col: " << err.token.position.column << "\n";
-		std::cerr << strippedLine << "\n";
-
-		// Squiggles
-		int squiggleStart = std::max(0, (int)(err.token.position.column - 1 - indentation));
-
-		std::cerr << Str(squiggleStart, ' ')	// Leading spaces
-			<< Str(err.token.lexeme.size(), '~')	// Squiggles
-			<< "  // Error: " << err.what() << "\n\n";		// Error message
-	}
-}
-
-ParserError Parser::error(const Token& token, const Str& message) {
-	MRK_ERROR("Parser error at {}:{} (length {}) - {}",
-		token.position.line, token.position.column, token.lexeme.size(), message);
-
-	return ParserError(token, message);
+	return err;
 }
 
 void Parser::synchronize() {
@@ -160,7 +124,7 @@ UniquePtr<LangBlockStmt> Parser::parseLangBlock() {
 	auto startToken = previous_;
 	auto language = previous_.lexeme;
 
-	consume(TokenType::LIT_LANG_BLOCK, "Invalid language parseBlock");
+	consume(TokenType::LIT_LANG_BLOCK, "Invalid language block");
 
 	auto rawCode = previous_.lexeme;
 	return MakeUnique<LangBlockStmt>(Move(startToken), Move(language), Move(rawCode));
@@ -373,7 +337,7 @@ UniquePtr<BlockStmt> Parser::parseBlock(bool consumeBrace) {
 	auto startToken = consumeBrace ? current_ : previous_;
 
 	if (consumeBrace) { // Consume brace if not already consumed
-		consume(TokenType::LBRACE, "Expected '{' at beginning of parseBlock");
+		consume(TokenType::LBRACE, "Expected '{' at beginning of block");
 	}
 
 	Vec<UniquePtr<StmtNode>> statements;
@@ -381,7 +345,7 @@ UniquePtr<BlockStmt> Parser::parseBlock(bool consumeBrace) {
 		statements.push_back(parseStatement());
 	}
 
-	consume(TokenType::RBRACE, "Expected '}' after parseBlock");
+	consume(TokenType::RBRACE, "Expected '}' after block");
 	return MakeUnique<BlockStmt>(Move(startToken), Move(statements));
 }
 
@@ -893,7 +857,7 @@ UniquePtr<ExprNode> Parser::parseInterpolatedString() {
 			Lexer exprLexer(exprStr);
 			exprLexer.tokenize();
 
-			Parser exprParser("", &exprLexer);
+			Parser exprParser(Move(exprLexer.moveTokens()));
 			parts.push_back(exprParser.parseExpression());
 
 			pos = endPos + 1;

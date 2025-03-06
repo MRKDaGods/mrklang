@@ -2,12 +2,13 @@
 #include "common/utils.h"
 #include "common/logging.h"
 #include "symbol_collector.h"
+#include "core/error_reporter.h"
 
 #include <iostream>
 #include <format>
 #include <algorithm>
 
-MRK_NS_BEGIN
+MRK_NS_BEGIN_MODULE(semantic)
 
 void NamespaceSymbolDescriptor::addVariant(const NamespaceSymbol* variant) {
 	isImplicit |= variant->isImplicit;
@@ -32,6 +33,10 @@ void SymbolTable::build() {
 	SymbolCollector collector(this);
 
 	for (const auto& program : programs_) {
+		// Set current file for error reporting
+		ErrorReporter::instance().setCurrentFile(program->sourceFile);
+
+		// Collect symbols
 		collector.visit(program.get());
 	}
 }
@@ -144,7 +149,7 @@ NamespaceSymbol* SymbolTable::declareNamespace(const Str& nsName, NamespaceSymbo
 	if (parent) {
 		parent->namespaces[ptr->name].addVariant(ptr);
 
-		// Check if parent is implicit, if so add to nearest non-implicit ancestor
+		// Check if parent is implicit, if so add to nearest non-implicit ancestor (namespace)
 		if (parent->isImplicit) {
 			auto ancestor = dynamic_cast<NamespaceSymbol*>(parent->parent);
 			while (ancestor && ancestor->isImplicit) {
@@ -177,6 +182,34 @@ NamespaceSymbol* SymbolTable::declareFileScope(const Str& filename) {
 	auto fileQualifiedNms = "__global::" + filename;
 	namespaces_[fileQualifiedNms] = Move(fileNamespace);
 	return ptr;
+}
+
+void SymbolTable::error(const ASTNode* node, const Str& message) {
+	// Doubt if we should throw here
+	// Just report for now
+	ErrorReporter::instance().semanticError(message, node);
+}
+
+Symbol* SymbolTable::findFirstNonImplicitParent(const Symbol* symbol) const {
+	auto parent = symbol->parent;
+	while (parent && (parent->kind == SymbolKind::NAMESPACE || parent->kind == SymbolKind::BLOCK)) {
+		if (parent->kind == SymbolKind::NAMESPACE && !dynamic_cast<const NamespaceSymbol*>(parent)->isImplicit) {
+			return parent;
+		}
+
+		parent = parent->parent;
+	}
+
+	return parent;
+}
+
+Symbol* SymbolTable::findAncestorOfKind(const Symbol* symbol, const SymbolKind& kind) const {
+	auto parent = symbol->parent;
+	while (parent && !detail::hasFlag(parent->kind, kind)) {
+		parent = parent->parent;
+	}
+
+	return parent;
 }
 
 MRK_NS_END

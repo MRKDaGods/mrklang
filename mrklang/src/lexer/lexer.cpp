@@ -1,6 +1,7 @@
 #include "lexer.h"
 #include "token_lookup.h"
 #include "lexer_logging.h"
+#include "core/error_reporter.h"
 
 #include <algorithm>
 
@@ -65,10 +66,6 @@ const Vec<Token>& Lexer::tokenize() {
 	return tokens_;
 }
 
-const Vec<LexerError>& Lexer::getErrors() const {
-	return errors_;
-}
-
 const LexerPosition& Lexer::getPosition() const {
 	return position_;
 }
@@ -77,42 +74,12 @@ const Vec<Token>& Lexer::getTokens() const {
 	return tokens_;
 }
 
-const Str& Lexer::getSource() const {
-	return source_;
+Vec<Token>&& Lexer::moveTokens() {
+	return Move(tokens_);
 }
 
-void Lexer::reportErrors() const {
-	Vec<Str> lines;
-	std::istringstream sourceStream(source_);
-
-	Str line;
-	while (std::getline(sourceStream, line)) {
-		lines.push_back(line);
-	}
-
-	for (const auto& err : errors_) {
-		if (err.position.line > lines.size()) continue; // Skip invalid line numbers
-
-		// Strip leading whitespace
-		Str strippedLine = lines[err.position.line - 1];
-		strippedLine.erase(0, strippedLine.find_first_not_of(" \t"));
-
-		// Adjust col
-		size_t indentation = lines[err.position.line - 1].find_first_not_of(" \t");
-		if (indentation == Str::npos) {
-			indentation = 0;
-		}
-
-		std::cerr << "Line: " << err.position.line << ", Col: " << err.position.column << "\n";
-		std::cerr << strippedLine << "\n";
-
-		// Squiggles
-		int squiggleStart = std::max(0, (int)(err.position.column - 1 - indentation));
-
-		std::cerr << Str(squiggleStart, ' ')	// Leading spaces
-			<< Str(err.length, '~')				// Squiggles
-			<< "  // Error: " << err.message << "\n\n";		// Error message
-	}
+const Str& Lexer::getSource() const {
+	return source_;
 }
 
 void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& position) {
@@ -124,11 +91,10 @@ void Lexer::addToken(TokenType type, const LexerPosition& position) {
 }
 
 void Lexer::error(const Str& message, const LexerPosition& position, uint32_t length) {
-	if (errors_.size() > maxErrors_) return;
+	auto& errorReporter = ErrorReporter::instance();
+	if (errorReporter.errorCount() > maxErrors_) return;
 
-	errors_.push_back({ message, position, length });
-	MRK_ERROR("Lexer error at {}:{} (length {}) - {}",
-		position.line, position.column, length, message);
+	errorReporter.lexicalError(message, position, length);
 }
 
 bool Lexer::isAtEnd() {

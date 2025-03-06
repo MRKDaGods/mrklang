@@ -4,6 +4,9 @@ func main() {
 	var arr = [1, 2, 3];
 
 	Log(LogLevel.Info, "Hello, World!");
+
+	namespace x {
+	}
 }
 
 

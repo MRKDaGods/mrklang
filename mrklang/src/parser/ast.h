@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/macros.h"
+#include "core/source_file.h"
 #include "lexer/token.h"
 
 #include <memory>
@@ -63,9 +64,13 @@ public:
 /// Base node for expressions and statements
 struct Node {
 	/// Mapping ast to source code
-	Token&& startToken;
+	Token startToken;
 
-	Node(Token&& startToken) : startToken(Move(startToken)) {}
+	/// Source file where this node is located
+	/// Set by SymbolCollector
+	const SourceFile* sourceFile;
+
+	Node(Token&& startToken) : startToken(Move(startToken)), sourceFile(nullptr) {}
 	virtual ~Node() = default;
 	virtual Str toString() const = 0;
 	virtual void accept(ASTVisitor& visitor) = 0;
@@ -453,9 +458,9 @@ struct EnumDeclStmt : StmtNode {
 	void accept(ASTVisitor& visitor) override;
 };
 
-/// Type declaration: class/struct Name<T> as Alias : Base1, Base2 { body }
+/// Type declaration: class/struct/interface Name<T> as Alias : Base1, Base2 { body }
 struct TypeDeclStmt : StmtNode {
-	Token type; // struct / class
+	Token type; // struct / class / interface
 	UniquePtr<TypeReferenceExpr> name;
 	Vec<UniquePtr<IdentifierExpr>> aliases;
 	Vec<UniquePtr<TypeReferenceExpr>> baseTypes;
@@ -476,12 +481,12 @@ struct TypeDeclStmt : StmtNode {
 
 /// Program structure
 struct Program {
-	Str filename;
+	const SourceFile* sourceFile;
 	Vec<UniquePtr<StmtNode>> statements;
 
 	Program() = default;
-	Program(const Str& filename, Vec<UniquePtr<StmtNode>>&& statements)
-		: filename(filename), statements(Move(statements)) {}
+	Program(const SourceFile* sourceFile, Vec<UniquePtr<StmtNode>>&& statements)
+		: sourceFile(sourceFile), statements(Move(statements)) {}
 
 	Str toString() const;
 };

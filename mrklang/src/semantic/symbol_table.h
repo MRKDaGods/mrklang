@@ -4,33 +4,35 @@
 #include "parser/ast.h"
 #include "access_modifier.h"
 
-MRK_NS_BEGIN
-
-using namespace semantic;
+MRK_NS_BEGIN_MODULE(semantic)
 
 using ASTNode = ast::Node;
 
 #define SYMBOL_KINDS \
-	X(NAMESPACE) \
-	X(VARIABLE) \
-	X(FUNCTION) \
-	X(FUNCTION_PARAMETER) \
-	X(TYPE) \
-	X(CLASS) \
-	X(STRUCT) \
-	X(ENUM) \
-	X(ENUM_MEMBER) \
-	X(BLOCK)
+	X(NAMESPACE, 0) \
+	X(VARIABLE, 1) \
+	X(FUNCTION, 2) \
+	X(FUNCTION_PARAMETER, 3) \
+	X(TYPE, 4) \
+	X(CLASS, 5) \
+	X(STRUCT, 6) \
+	X(INTERFACE, 7) \
+	X(ENUM, 8) \
+	X(ENUM_MEMBER, 9) \
+	X(BLOCK, 10)
 
-enum class SymbolKind {
-	#define X(x) x,
+enum class SymbolKind : uint32_t {
+	NONE = 0,
+	#define X(x, y) x = 1 << y,
 	SYMBOL_KINDS
 	#undef X
 };
 
+IMPLEMENT_FLAGS_OPERATORS_INLINE(SymbolKind);
+
 constexpr std::string_view toString(const SymbolKind& type) {
 	switch (type) {
-		#define X(x) case SymbolKind::x: return #x;
+		#define X(x, y) case SymbolKind::x: return #x;
 		SYMBOL_KINDS
 		#undef X
 
@@ -40,6 +42,13 @@ constexpr std::string_view toString(const SymbolKind& type) {
 }
 
 #undef SYMBOL_KINDS
+
+struct SemanticError : std::runtime_error {
+	const ASTNode* node;
+
+	SemanticError(const ASTNode* node, Str message)
+		: std::runtime_error(Move(message)), node(node) {}
+};
 
 struct NamespaceSymbol;
 struct NamespaceSymbolDescriptor {
@@ -104,6 +113,7 @@ struct TypeSymbol : Symbol {
 		: Symbol(kind, Move(name), parent, declNode) {}
 };
 
+// TODO: Merge ClassSymbol, StructSymbol, InterfaceSymbol, EnumSymbol ??
 struct ClassSymbol : TypeSymbol {
 	ClassSymbol(Str name, Symbol* parent, ASTNode* declNode)
 		: TypeSymbol(SymbolKind::CLASS, Move(name), parent, declNode) {}
@@ -112,6 +122,11 @@ struct ClassSymbol : TypeSymbol {
 struct StructSymbol : TypeSymbol {
 	StructSymbol(Str name, Symbol* parent, ASTNode* declNode)
 		: TypeSymbol(SymbolKind::STRUCT, Move(name), parent, declNode) {}
+};
+
+struct InterfaceSymbol : TypeSymbol {
+	InterfaceSymbol(Str name, Symbol* parent, ASTNode* declNode)
+		: TypeSymbol(SymbolKind::INTERFACE, Move(name), parent, declNode) {}
 };
 
 struct EnumSymbol : TypeSymbol {
@@ -134,7 +149,6 @@ struct BlockSymbol : Symbol {
 class SymbolTable {
 public:
 	SymbolTable(Vec<UniquePtr<ast::Program>>&& programs);
-
 	void build();
 	void dump() const;
 	void dumpSymbol(const Symbol* symbol, int indent) const;
@@ -148,6 +162,15 @@ public:
 
 	/// Declare a new file scope namespace (implicit)
 	NamespaceSymbol* declareFileScope(const Str& filename);
+
+	void error(const ASTNode* node, const Str& message);
+
+	/// Find the first non-implicit parent of a symbol
+	/// Implicit symbols are either file scopes or blocks
+	Symbol* findFirstNonImplicitParent(const Symbol* symbol) const;
+
+	/// Find the nearest ancestor of a symbol of a specific kind
+	Symbol* findAncestorOfKind(const Symbol* symbol, const SymbolKind& kind) const;
 
 private:
 	Vec<UniquePtr<ast::Program>> programs_;

@@ -10,12 +10,6 @@
 
 MRK_NS_BEGIN
 
-struct LexerError {
-	Str message;
-	LexerPosition position;
-	uint32_t length;
-};
-
 /// A lexical analyzer that converts a source string into a sequence of tokens.
 class Lexer {
 public:
@@ -27,20 +21,17 @@ public:
 	/// @return A vector of tokens extracted from the source string.
 	const Vec<Token>& tokenize();
 
-    /// Returns the list of errors encountered during lexing.
-    const Vec<LexerError>& getErrors() const;
-
     /// Returns the current position of the lexer in the source string.
     const LexerPosition& getPosition() const;
 
 	/// Returns the tokens extracted from the source string.
 	const Vec<Token>& getTokens() const;
 
+	/// Moves the tokens extracted from the source string.
+	Vec<Token>&& moveTokens();
+
 	/// Returns the source string being tokenized.
 	const Str& getSource() const;
-
-	/// Reports all errors encountered during lexing.
-	void reportErrors() const;
 
 private:
 	/// The source string to be tokenized.
@@ -54,9 +45,6 @@ private:
 
 	/// The maximum number of errors allowed before the lexer stops processing.
 	const uint32_t maxErrors_;
-
-	/// The errors encountered during lexing.
-	Vec<LexerError> errors_;
 
 	/// Keeps track of the start positions of tokens in the current tree.
 	LexerPositionTree positionTree_;

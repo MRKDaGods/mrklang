@@ -9,7 +9,9 @@ TOKEN(KW_FUNC)              /// Function keyword
 TOKEN(KW_CLASS)             /// Class keyword
 TOKEN(KW_STRUCT)            /// Struct
 TOKEN(KW_ENUM)              /// Enum
+TOKEN(KW_INTERFACE)         /// Interface
 TOKEN(KW_VAR)               /// Variable keyword
+
 TOKEN(KW_IF)                /// If keyword
 TOKEN(KW_ELSE)              /// Else keyword
 TOKEN(KW_FOR)               /// For keyword
@@ -28,12 +30,22 @@ TOKEN(KW_FROM)              /// from, to be used with use. use xyz from "LLL"
 TOKEN(KW_GLOBAL)            /// Reserve __global namespace
 
 // --- Access modifiers Keywords ---
-TOKEN(KW_STATIC)            /// Static keyword
-TOKEN(KW_PUBLIC)            /// Public
-TOKEN(KW_PRIVATE)
+TOKEN(KW_PUBLIC)
 TOKEN(KW_PROTECTED)
+TOKEN(KW_PRIVATE)
+TOKEN(KW_INTERNAL)
+TOKEN(KW_STATIC)
+TOKEN(KW_ABSTRACT)
+TOKEN(KW_SEALED)
 TOKEN(KW_VIRTUAL)
 TOKEN(KW_OVERRIDE)
+TOKEN(KW_CONST)
+TOKEN(KW_READONLY)
+TOKEN(KW_EXTERN)
+TOKEN(KW_IMPLICIT)
+TOKEN(KW_EXPLICIT)
+TOKEN(KW_ASYNC)
+
 
 // --- Literals ---
 TOKEN(LIT_INT)              /// Integer literal

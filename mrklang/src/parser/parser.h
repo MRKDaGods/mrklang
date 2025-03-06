@@ -3,6 +3,8 @@
 #include "common/types.h"
 #include "lexer/token.h"
 #include "lexer/lexer.h"
+#include "core/error_reporter.h"
+#include "core/source_file.h"
 #include "ast.h"
 
 #include <vector>
@@ -12,32 +14,19 @@ MRK_NS_BEGIN
 
 using namespace ast;
 
-struct ParserError : std::runtime_error {
-	Token token;
-
-	ParserError(const Token& token, Str message) 
-		: std::runtime_error(Move(message)), token(Token(token)) {
-	}
-};
-
 class Parser {
 public:
-	Parser(const Str& filename, const Lexer* lexer);
-	UniquePtr<Program> parseProgram();
-	const Vec<ParserError>& getErrors() const;
-	void reportErrors() const;
+	Parser(Vec<Token>&& tokens);
+	UniquePtr<Program> parseProgram(const SourceFile* sourceFile);
 
 private:
-	const Str filename_;
-	const Lexer* lexer_;
 	Vec<Token> tokens_;
 	uint32_t currentPos_;
 	Token current_;
 	Token previous_;
-	Vec<ParserError> errors_;
 
 	// Error handling
-	[[noreturn]] ParserError error(const Token& token, const Str& message);
+	[[noreturn]] CompilerError* error(const Token& token, const Str& message);
 	void synchronize();
 
 	// Token navigation

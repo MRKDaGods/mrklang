@@ -36,27 +36,7 @@ enum class AccessModifier : uint32_t {
 	#undef X
 };
 
-inline AccessModifier operator|(AccessModifier lhs, AccessModifier rhs) {
-	return static_cast<AccessModifier>(static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs));
-}
-
-inline AccessModifier operator&(AccessModifier lhs, AccessModifier rhs) {
-	return static_cast<AccessModifier>(static_cast<uint32_t>(lhs) & static_cast<uint32_t>(rhs));
-}
-
-inline AccessModifier operator~(AccessModifier modifier) {
-	return static_cast<AccessModifier>(~static_cast<uint32_t>(modifier));
-}
-
-inline AccessModifier& operator|=(AccessModifier& lhs, AccessModifier rhs) {
-	lhs = lhs | rhs;
-	return lhs;
-}
-
-inline AccessModifier& operator&=(AccessModifier& lhs, AccessModifier rhs) {
-	lhs = lhs & rhs;
-	return lhs;
-}
+IMPLEMENT_FLAGS_OPERATORS_INLINE(AccessModifier);
 
 // Utility functions to check for access modifiers
 

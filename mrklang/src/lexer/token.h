@@ -69,12 +69,22 @@ struct Token {
 
 	bool isAccessModifier() {
 		switch (type) {
-			case TokenType::KW_STATIC:
 			case TokenType::KW_PUBLIC:
-			case TokenType::KW_PRIVATE:
 			case TokenType::KW_PROTECTED:
+			case TokenType::KW_PRIVATE:
+			case TokenType::KW_INTERNAL:
+			case TokenType::KW_STATIC:
+			case TokenType::KW_ABSTRACT:
+			case TokenType::KW_SEALED:
 			case TokenType::KW_VIRTUAL:
 			case TokenType::KW_OVERRIDE:
+			case TokenType::KW_CONST:
+			case TokenType::KW_READONLY:
+			case TokenType::KW_EXTERN:
+			case TokenType::KW_IMPLICIT:
+			case TokenType::KW_EXPLICIT:
+			case TokenType::KW_NEW:
+			case TokenType::KW_ASYNC:
 				return true;
 
 			default:
