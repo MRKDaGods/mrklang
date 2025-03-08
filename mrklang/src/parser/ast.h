@@ -67,7 +67,7 @@ struct Node {
 	Token startToken;
 
 	/// Source file where this node is located
-	/// Set by SymbolCollector
+	/// Set by SymbolVisitor
 	const SourceFile* sourceFile;
 
 	Node(Token&& startToken) : startToken(Move(startToken)), sourceFile(nullptr) {}

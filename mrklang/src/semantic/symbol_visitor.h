@@ -18,9 +18,9 @@ using namespace ast;
 
 /// Collects symbols from an AST and populates a symbol table
 /// Also binds AST nodes to their source files
-class SymbolCollector : public ASTVisitor {
+class SymbolVisitor : public ASTVisitor {
 public:
-	SymbolCollector(SymbolTable* symbolTable);
+	SymbolVisitor(SymbolTable* symbolTable);
 
 	void visit(Program* node) override;
 

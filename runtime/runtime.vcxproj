@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{a2da9d60-5a99-4338-8332-5702f5e382db}</ProjectGuid>
-    <RootNamespace>mrklang</RootNamespace>
+    <ProjectGuid>{418f5cb4-48ee-4333-9e96-295d7f47def5}</ProjectGuid>
+    <RootNamespace>runtime</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -43,7 +43,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -70,10 +70,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)src;$(ProjectDir)..\runtime\src\runtime-api;$(IncludePath)</IncludePath>
-    <LibraryPath>$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -109,7 +105,6 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <UseStandardPreprocessor>true</UseStandardPreprocessor>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -133,47 +128,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\codegen\cpp_generator.cpp" />
-    <ClCompile Include="src\core\core.cpp" />
-    <ClCompile Include="src\core\error_reporter.cpp" />
-    <ClCompile Include="src\core\metadata_builder.cpp" />
-    <ClCompile Include="src\lexer\lexer_position_tree.cpp" />
-    <ClCompile Include="src\lexer\token_lookup.cpp" />
-    <ClCompile Include="src\lexer\lexer.cpp" />
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\parser\ast.cpp" />
-    <ClCompile Include="src\parser\parser.cpp" />
-    <ClCompile Include="src\semantic\symbol_visitor.cpp" />
-    <ClCompile Include="src\semantic\symbol_table.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="src\codegen\cpp_generator.h" />
-    <ClInclude Include="src\core\core.h" />
-    <ClInclude Include="src\core\error_reporter.h" />
-    <ClInclude Include="src\common\logging.h" />
-    <ClInclude Include="src\common\macros.h" />
-    <ClInclude Include="src\common\types.h" />
-    <ClInclude Include="src\common\utils.h" />
-    <ClInclude Include="src\core\metadata_builder.h" />
-    <ClInclude Include="src\core\profiler.h" />
-    <ClInclude Include="src\core\source_file.h" />
-    <ClInclude Include="src\lexer\lexer_logging.h" />
-    <ClInclude Include="src\lexer\lexer_position_tree.h" />
-    <ClInclude Include="src\lexer\token_lookup.h" />
-    <ClInclude Include="src\lexer\lexer.h" />
-    <ClInclude Include="src\lexer\token.h" />
-    <ClInclude Include="src\parser\ast.h" />
-    <ClInclude Include="src\parser\parser.h" />
-    <ClInclude Include="src\semantic\access_modifier.h" />
-    <ClInclude Include="src\semantic\symbols.h" />
-    <ClInclude Include="src\semantic\symbol_visitor.h" />
-    <ClInclude Include="src\semantic\symbol_table.h" />
-    <ClInclude Include="src\semantic\type_system.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="examples\hello.mrk" />
-    <None Include="examples\runtime.mrk" />
-    <None Include="src\lexer\token_defs.inc" />
+    <ClInclude Include="src\runtime-api\mrk-metadata.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

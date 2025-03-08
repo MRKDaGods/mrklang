@@ -1,4 +1,4 @@
-#include "symbol_collector.h"
+#include "symbol_visitor.h"
 #include "symbol_table.h"
 #include "common/utils.h"
 
@@ -6,11 +6,12 @@
 
 MRK_NS_BEGIN_MODULE(semantic)
 
-SymbolCollector::SymbolCollector(SymbolTable* symbolTable)
-	: symbolTable_(symbolTable), currentNamespace_(nullptr), currentScope_(nullptr), currentModifiers_(AccessModifier::NONE) {}
+SymbolVisitor::SymbolVisitor(SymbolTable* symbolTable)
+	: symbolTable_(symbolTable), currentNamespace_(nullptr), currentScope_(nullptr),
+	currentModifiers_(AccessModifier::NONE), currentFile_(nullptr) {}
 
 /// Visit a Program node - entry point for processing a file
-void SymbolCollector::visit(Program* node) {
+void SymbolVisitor::visit(Program* node) {
 	// Update namespace
 	currentNamespace_ = symbolTable_->declareFileScope(node->sourceFile->filename);
 	currentScope_ = currentNamespace_;
@@ -30,13 +31,13 @@ void SymbolCollector::visit(Program* node) {
 	popScope();
 }
 
-void SymbolCollector::visit(LiteralExpr* node) {
+void SymbolVisitor::visit(LiteralExpr* node) {
 	bindSourceFile(node);
 
 	// None
 }
 
-void SymbolCollector::visit(InterpolatedStringExpr* node) {
+void SymbolVisitor::visit(InterpolatedStringExpr* node) {
 	bindSourceFile(node);
 
 	for (const auto& part : node->parts) {
@@ -44,25 +45,25 @@ void SymbolCollector::visit(InterpolatedStringExpr* node) {
 	}
 }
 
-void SymbolCollector::visit(InteropCallExpr* node) {
+void SymbolVisitor::visit(InteropCallExpr* node) {
 	bindSourceFile(node);
 
 	// TODO: impl
 }
 
-void SymbolCollector::visit(IdentifierExpr* node) {
+void SymbolVisitor::visit(IdentifierExpr* node) {
 	bindSourceFile(node);
 
 	// None
 }
 
-void SymbolCollector::visit(TypeReferenceExpr* node) {
+void SymbolVisitor::visit(TypeReferenceExpr* node) {
 	bindSourceFile(node);
 
 	// None
 }
 
-void SymbolCollector::visit(CallExpr* node) {
+void SymbolVisitor::visit(CallExpr* node) {
 	bindSourceFile(node);
 
 	if (node->target) {
@@ -74,20 +75,20 @@ void SymbolCollector::visit(CallExpr* node) {
 	}
 }
 
-void SymbolCollector::visit(BinaryExpr* node) {
+void SymbolVisitor::visit(BinaryExpr* node) {
 	bindSourceFile(node);
 
 	node->left->accept(*this);
 	node->right->accept(*this);
 }
 
-void SymbolCollector::visit(UnaryExpr* node) {
+void SymbolVisitor::visit(UnaryExpr* node) {
 	bindSourceFile(node);
 
 	node->right->accept(*this);
 }
 
-void SymbolCollector::visit(TernaryExpr* node) {
+void SymbolVisitor::visit(TernaryExpr* node) {
 	bindSourceFile(node);
 
 	node->condition->accept(*this);
@@ -95,7 +96,7 @@ void SymbolCollector::visit(TernaryExpr* node) {
 	node->elseBranch->accept(*this);
 }
 
-void SymbolCollector::visit(AssignmentExpr* node) {
+void SymbolVisitor::visit(AssignmentExpr* node) {
 	bindSourceFile(node);
 
 	node->target->accept(*this);
@@ -105,7 +106,7 @@ void SymbolCollector::visit(AssignmentExpr* node) {
 	}
 }
 
-void SymbolCollector::visit(NamespaceAccessExpr* node) {
+void SymbolVisitor::visit(NamespaceAccessExpr* node) {
 	bindSourceFile(node);
 
 	for (const auto& part : node->path) {
@@ -113,13 +114,13 @@ void SymbolCollector::visit(NamespaceAccessExpr* node) {
 	}
 }
 
-void SymbolCollector::visit(MemberAccessExpr* node) {
+void SymbolVisitor::visit(MemberAccessExpr* node) {
 	bindSourceFile(node);
 
 	node->target->accept(*this);
 }
 
-void SymbolCollector::visit(ArrayExpr* node) {
+void SymbolVisitor::visit(ArrayExpr* node) {
 	bindSourceFile(node);
 
 	for (const auto& elem : node->elements) {
@@ -127,13 +128,13 @@ void SymbolCollector::visit(ArrayExpr* node) {
 	}
 }
 
-void SymbolCollector::visit(ExprStmt* node) {
+void SymbolVisitor::visit(ExprStmt* node) {
 	bindSourceFile(node);
 
 	node->expr->accept(*this);
 }
 
-void SymbolCollector::visit(VarDeclStmt* node) {
+void SymbolVisitor::visit(VarDeclStmt* node) {
 	bindSourceFile(node);
 
 	// Check for const initialization
@@ -167,12 +168,12 @@ void SymbolCollector::visit(VarDeclStmt* node) {
 	}
 }
 
-void SymbolCollector::visit(BlockStmt* node) {
+void SymbolVisitor::visit(BlockStmt* node) {
 	bindSourceFile(node);
 
 	auto blockName = "block_" + std::to_string(reinterpret_cast<uintptr_t>(node));
 	auto blockSymbol = MakeUnique<BlockSymbol>(Move(blockName), currentScope_, node);
-	
+
 	// Add modifiers
 	blockSymbol->accessModifier = currentModifiers_;
 	blockSymbol->declSpec = currentDeclSpec_;
@@ -182,26 +183,26 @@ void SymbolCollector::visit(BlockStmt* node) {
 	currentScope_->members[blockPtr->name] = Move(blockSymbol);
 
 	// Push block scope
-	pushScope(blockPtr);
+	//pushScope(blockPtr);
 
 	for (const auto& stmt : node->statements) {
 		stmt->accept(*this);
 	}
 
 	// Pop block scope
-	popScope();
+	//popScope();
 
 	// Reset again incase? Im lost lmao
 	resetModifiers();
 }
 
-void SymbolCollector::visit(ParamDeclStmt* node) {
+void SymbolVisitor::visit(ParamDeclStmt* node) {
 	bindSourceFile(node);
 
 	// Processed by FuncDeclStmt
 }
 
-void SymbolCollector::visit(FuncDeclStmt* node) {
+void SymbolVisitor::visit(FuncDeclStmt* node) {
 	bindSourceFile(node);
 
 	// Collect parameters
@@ -252,6 +253,9 @@ void SymbolCollector::visit(FuncDeclStmt* node) {
 
 	currentScope_->members[node->getSignature()] = Move(funcSymbol);
 
+	// Register to function list
+	symbolTable_->addFunction(funcPtr);
+
 	// Push function scope
 	pushScope(funcPtr);
 
@@ -262,7 +266,7 @@ void SymbolCollector::visit(FuncDeclStmt* node) {
 	popScope();
 }
 
-void SymbolCollector::visit(IfStmt* node) {
+void SymbolVisitor::visit(IfStmt* node) {
 	bindSourceFile(node);
 
 	node->condition->accept(*this);
@@ -273,7 +277,7 @@ void SymbolCollector::visit(IfStmt* node) {
 	}
 }
 
-void SymbolCollector::visit(ForStmt* node) {
+void SymbolVisitor::visit(ForStmt* node) {
 	bindSourceFile(node);
 
 	if (node->init) {
@@ -289,7 +293,7 @@ void SymbolCollector::visit(ForStmt* node) {
 	node->body->accept(*this);
 }
 
-void SymbolCollector::visit(ForeachStmt* node) {
+void SymbolVisitor::visit(ForeachStmt* node) {
 	bindSourceFile(node);
 
 	node->variable->accept(*this);
@@ -297,20 +301,20 @@ void SymbolCollector::visit(ForeachStmt* node) {
 	node->body->accept(*this);
 }
 
-void SymbolCollector::visit(WhileStmt* node) {
+void SymbolVisitor::visit(WhileStmt* node) {
 	bindSourceFile(node);
 
 	node->condition->accept(*this);
 	node->body->accept(*this);
 }
 
-void SymbolCollector::visit(LangBlockStmt* node) {
+void SymbolVisitor::visit(LangBlockStmt* node) {
 	bindSourceFile(node);
 
 	// Untracked
 }
 
-void SymbolCollector::visit(AccessModifierStmt* node) {
+void SymbolVisitor::visit(AccessModifierStmt* node) {
 	bindSourceFile(node);
 
 	// Validate modifiers
@@ -370,11 +374,11 @@ void SymbolCollector::visit(AccessModifierStmt* node) {
 }
 
 
-void SymbolCollector::visit(NamespaceDeclStmt* node) {
+void SymbolVisitor::visit(NamespaceDeclStmt* node) {
 	bindSourceFile(node);
 
 	// Namespaces may only be declared at global scope or within another namespace
-	if (currentScope_->kind != SymbolKind::NAMESPACE && 
+	if (currentScope_->kind != SymbolKind::NAMESPACE &&
 		symbolTable_->findFirstNonImplicitParent(currentScope_)->kind != SymbolKind::NAMESPACE) {
 		symbolTable_->error(node, "Namespace can only be declared at global scope or within another namespace");
 		resetModifiers();
@@ -385,7 +389,7 @@ void SymbolCollector::visit(NamespaceDeclStmt* node) {
 	auto prevNamespace = currentNamespace_;
 
 	// Declare new namespace and mark as current
-	auto nsLocalName = formatCollection(node->path, "::", [](const auto& item) { return item->name; });
+	auto nsLocalName = utils::formatCollection(node->path, "::", [](const auto& item) { return item->name; });
 	currentNamespace_ = symbolTable_->declareNamespace(nsLocalName, currentNamespace_, node);
 
 	// Namespaces may have declspec
@@ -409,19 +413,35 @@ void SymbolCollector::visit(NamespaceDeclStmt* node) {
 	resetModifiers();
 }
 
-void SymbolCollector::visit(DeclSpecStmt* node) {
+void SymbolVisitor::visit(DeclSpecStmt* node) {
 	bindSourceFile(node);
 
 	currentDeclSpec_ = node->spec->name;
 }
 
-void SymbolCollector::visit(UseStmt* node) {
+void SymbolVisitor::visit(UseStmt* node) {
 	bindSourceFile(node);
 
-	// Do we add import symbols?
+	// Use statements may only appear as a top level decl
+	// Either check if our nearest non implicit ancestor is our global namespace
+	// or check if the currentScope is our file scope
+	if (!detail::hasFlag(currentScope_->kind, SymbolKind::NAMESPACE) ||
+		currentScope_->parent != symbolTable_->getGlobalNamespace()) {
+		symbolTable_->error(node, "Use statements may only appear as top level statements");
+		return;
+	}
+
+	for (auto& path : node->paths) {
+		auto entry = ImportEntry{
+			utils::formatCollection(path, "::", [](const auto& item) { return item->name; }),
+			node->file ? node->file->value.lexeme : "",
+		};
+
+		symbolTable_->addImport(node->sourceFile, Move(entry));
+	}
 }
 
-void SymbolCollector::visit(ReturnStmt* node) {
+void SymbolVisitor::visit(ReturnStmt* node) {
 	bindSourceFile(node);
 
 	if (node->value) {
@@ -429,20 +449,26 @@ void SymbolCollector::visit(ReturnStmt* node) {
 	}
 }
 
-void SymbolCollector::visit(EnumDeclStmt* node) {
+void SymbolVisitor::visit(EnumDeclStmt* node) {
 	bindSourceFile(node);
 
 	// Enums may not exist within a function or an interface
 	// Ali is bronze
-	if (currentScope_->kind == SymbolKind::FUNCTION || currentScope_->kind == SymbolKind::INTERFACE || 
+	if (detail::hasFlag(currentScope_->kind, SymbolKind::FUNCTION) || detail::hasFlag(currentScope_->kind, SymbolKind::INTERFACE) ||
 		symbolTable_->findAncestorOfKind(currentScope_, SymbolKind::FUNCTION | SymbolKind::INTERFACE)) {
 		symbolTable_->error(node, "Enums may not exist within a function or an interface");
 		resetModifiers();
 		return;
 	}
 
+	Vec<Str> baseTypes;
+	if (node->type) {
+		baseTypes.push_back(node->type->getTypeName());
+	}
+
 	auto enumSymbol = MakeUnique<EnumSymbol>(
 		node->name->name,
+		Move(baseTypes),
 		currentScope_,
 		node
 	);
@@ -470,15 +496,20 @@ void SymbolCollector::visit(EnumDeclStmt* node) {
 	currentScope_->members[node->name->name] = Move(enumSymbol);
 }
 
-void SymbolCollector::visit(TypeDeclStmt* node) {
+void SymbolVisitor::visit(TypeDeclStmt* node) {
 	bindSourceFile(node);
 
 	UniquePtr<Symbol> typeSymbol;
 	Symbol* typePtr = nullptr;
 
+	Vec<Str> baseTypes;
+	std::transform(node->baseTypes.begin(), node->baseTypes.end(), std::back_inserter(baseTypes),
+		[](const auto& type) { return type->getTypeName(); });
+
 	if (node->type.lexeme == "class") {
 		typeSymbol = MakeUnique<ClassSymbol>(
 			node->name->getTypeName(),
+			Move(baseTypes),
 			currentScope_,
 			node
 		);
@@ -488,6 +519,7 @@ void SymbolCollector::visit(TypeDeclStmt* node) {
 	else if (node->type.lexeme == "struct") {
 		typeSymbol = MakeUnique<StructSymbol>(
 			node->name->getTypeName(),
+			Move(baseTypes),
 			currentScope_,
 			node
 		);
@@ -497,6 +529,7 @@ void SymbolCollector::visit(TypeDeclStmt* node) {
 	else if (node->type.lexeme == "interface") {
 		typeSymbol = MakeUnique<InterfaceSymbol>(
 			node->name->getTypeName(),
+			Move(baseTypes),
 			currentScope_,
 			node
 		);
@@ -515,6 +548,9 @@ void SymbolCollector::visit(TypeDeclStmt* node) {
 	// Add to current scope
 	currentScope_->members[node->name->getTypeName()] = Move(typeSymbol);
 
+	// Add to type list
+	symbolTable_->addType(dynamic_cast<TypeSymbol*>(typePtr));
+
 	// Push type scope
 	pushScope(typePtr);
 
@@ -525,21 +561,21 @@ void SymbolCollector::visit(TypeDeclStmt* node) {
 	popScope();
 }
 
-void SymbolCollector::bindSourceFile(ast::Node* node) {
+void SymbolVisitor::bindSourceFile(ast::Node* node) {
 	node->sourceFile = currentFile_;
 }
 
-void SymbolCollector::pushScope(Symbol* scope) {
+void SymbolVisitor::pushScope(Symbol* scope) {
 	scopeStack_.push(scope);
 	currentScope_ = scope;
 }
 
-void SymbolCollector::popScope() {
+void SymbolVisitor::popScope() {
 	scopeStack_.pop();
 	currentScope_ = scopeStack_.empty() ? nullptr : scopeStack_.top();
 }
 
-void SymbolCollector::resetModifiers() {
+void SymbolVisitor::resetModifiers() {
 	currentModifiers_ = AccessModifier::NONE;
 	currentDeclSpec_ = "";
 }

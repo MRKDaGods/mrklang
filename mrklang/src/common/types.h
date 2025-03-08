@@ -35,4 +35,17 @@ constexpr auto MakeUnique(Args&&... args) {
     return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
+template <typename T>
+constexpr auto MakeUnique() {
+    auto ptr = std::make_unique<T>();
+    if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_pointer_v<T>) {
+        *ptr = static_cast<T>(0);
+    }
+    else if constexpr (std::is_class_v<T> && !std::is_trivially_constructible_v<T>) {
+        // For non-trivial classes, attempt to zero-initialize if possible
+        std::memset(ptr.get(), 0, sizeof(T));
+    }
+    return ptr;
+}
+
 MRK_NS_END

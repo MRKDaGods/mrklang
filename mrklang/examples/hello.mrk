@@ -1,15 +1,12 @@
 // lang block
 
-func main() {
-	var arr = [1, 2, 3];
+use mrkstl, base::azync from "mrk.lib";
 
-	Log(LogLevel.Info, "Hello, World!");
+namespace ppl {
 
-	namespace x {
+namespace DETAIL {
+	class mrkutils {
 	}
 }
 
-
-if (kLevel == 0) {
-	LocalStorage::Invoke("xz");
 }

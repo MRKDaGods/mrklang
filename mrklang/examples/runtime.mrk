@@ -1,34 +1,7 @@
 // Logging utils
 
-namespace mrkstd {
-	public __declspec(NATIVE) struct Int32 as int : BASE1, BASE2 {
-		struct nestedClazz {
-		}
-	}
 
-	public enum LogLevel { 
-		Info = 1,
-		Error = 2,
-		Warning = 3
-	}
-
-	public __declspec(INTEROP_ONLY) func Log(LogLevel level, string format, params object[] args) {
-		var msg = $"[{level}] {format.Format(args)}";
-
-		__cpp {
-			std::cout << msg << std::endl;
-		}
-
-		__cs {
-			System.Console.WriteLine(msg);
-		}
-
-		__js {
-			console.log(msg);
-		}
-
-		__dart {
-			debugPrint(msg);
-		}
-	}
+namespace ppl {
+struct runtimehelper : DETAIL::mrkutils {
+}
 }

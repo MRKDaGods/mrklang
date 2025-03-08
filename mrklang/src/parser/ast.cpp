@@ -12,7 +12,7 @@ Str ParamDeclStmt::getSignature() {
 }
 
 Str TypeReferenceExpr::getTypeName() const {
-	Str result = formatCollection(identifiers, "::", [](const auto& item) { return item->name; });
+	Str result = utils::formatCollection(identifiers, "::", [](const auto& item) { return item->name; });
 
 	for (int i = 0; i < pointerRank; i++) {
 		result += "*";
@@ -23,7 +23,7 @@ Str TypeReferenceExpr::getTypeName() const {
 	}
 
 	if (!genericArgs.empty()) {
-		result += Fmt("<{}>", formatCollection(genericArgs));
+		result += Fmt("<{}>", utils::formatCollection(genericArgs));
 	}
 
 	return result;
@@ -33,7 +33,7 @@ Str FuncDeclStmt::getSignature() const {
 	// name(params) -> returnType
 	Str signature = Fmt("{}(", name->name);
 	if (!parameters.empty()) {
-		signature += formatCollection(parameters,
+		signature += utils::formatCollection(parameters,
 			[](const auto& param) { return param->getSignature(); });
 	}
 
@@ -51,12 +51,12 @@ Str LiteralExpr::toString() const {
 
 Str InterpolatedStringExpr::toString() const {
 	return Fmt("InterpolatedStringExpr([{}])",
-		formatCollection(parts));
+		utils::formatCollection(parts));
 }
 
 Str InteropCallExpr::toString() const {
 	return Fmt("InteropCallExpr({}, {}, [{}])",
-		targetLang, method->toString(), formatCollection(args));
+		targetLang, method->toString(), utils::formatCollection(args));
 }
 
 Str IdentifierExpr::toString() const {
@@ -69,7 +69,7 @@ Str TypeReferenceExpr::toString() const {
 
 Str CallExpr::toString() const {
 	return Fmt("CallExpr({}, [{}])",
-		target->toString(), formatCollection(arguments));
+		target->toString(), utils::formatCollection(arguments));
 }
 
 Str BinaryExpr::toString() const {
@@ -101,7 +101,7 @@ Str AssignmentExpr::toString() const {
 
 Str NamespaceAccessExpr::toString() const {
 	return Fmt("NamespaceAccessExpr([{}])",
-		formatCollection(path, "::"));
+		utils::formatCollection(path, "::"));
 }
 
 Str MemberAccessExpr::toString() const {
@@ -111,7 +111,7 @@ Str MemberAccessExpr::toString() const {
 
 Str ArrayExpr::toString() const {
 	return Fmt("ArrayExpr([{}])",
-		formatCollection(elements));
+		utils::formatCollection(elements));
 }
 
 Str ExprStmt::toString() const {
@@ -133,7 +133,7 @@ Str VarDeclStmt::toString() const {
 
 Str BlockStmt::toString() const {
 	return Fmt("BlockStmt([\n{}])",
-		formatCollection(statements, ";\n"));
+		utils::formatCollection(statements, ";\n"));
 }
 
 Str ParamDeclStmt::toString() const {
@@ -161,7 +161,7 @@ Str FuncDeclStmt::toString() const {
 		name->toString());
 
 	if (!parameters.empty()) {
-		result += formatCollection(parameters);
+		result += utils::formatCollection(parameters);
 	}
 
 	result += Fmt("], ");
@@ -207,12 +207,12 @@ Str LangBlockStmt::toString() const {
 
 Str AccessModifierStmt::toString() const {
 	return Fmt("AccessModifierStmt([{}])",
-		formatCollection(modifiers));
+		utils::formatCollection(modifiers));
 }
 
 Str NamespaceDeclStmt::toString() const {
 	return Fmt("NamespaceDeclStmt({}, {})",
-		formatCollection(path, "::"), body->toString());
+		utils::formatCollection(path, "::"), body->toString());
 }
 
 Str DeclSpecStmt::toString() const {
@@ -220,7 +220,7 @@ Str DeclSpecStmt::toString() const {
 }
 
 Str UseStmt::toString() const {
-	Str result = Fmt("UseStmt([{}]", formatCollection(paths, ", "));
+	Str result = Fmt("UseStmt([{}]", utils::formatCollection(paths, ", "));
 
 	if (file) {
 		result += Fmt(", {})", file->toString());
@@ -275,13 +275,13 @@ Str TypeDeclStmt::toString() const {
 		type.lexeme, name->toString());
 
 	if (!aliases.empty()) {
-		result += formatCollection(aliases);
+		result += utils::formatCollection(aliases);
 	}
 
 	result += "], [";
 
 	if (!baseTypes.empty()) {
-		result += formatCollection(baseTypes);
+		result += utils::formatCollection(baseTypes);
 	}
 
 	result += "], [";
