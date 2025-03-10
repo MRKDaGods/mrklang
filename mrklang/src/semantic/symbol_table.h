@@ -1,16 +1,26 @@
 #pragma once
 
 #include "common/types.h"
+#include "optional"
 #include "parser/ast.h"
 #include "symbols.h"
-#include "optional"
 
 MRK_NS_BEGIN_MODULE(semantic)
 
 struct ImportEntry {
 	Str path;
 	Str file;
+	const ASTNode* node; // Keep track of the node where this import was declared
 };
+
+enum class SymbolResolveFlags : uint32_t {
+	NONE = 0,
+	ANCESTORS = 1 << 0,
+	IMPORTS = 1 << 1,
+	ALL = ANCESTORS | IMPORTS
+};
+
+IMPLEMENT_FLAGS_OPERATORS_INLINE(SymbolResolveFlags);
 
 class SymbolTable {
 public:
@@ -28,42 +38,38 @@ public:
 	/// @param declNode - AST node where this namespace is declared
 	NamespaceSymbol* declareNamespace(const Str& nsName, NamespaceSymbol* parent = nullptr, ASTNode* declNode = nullptr);
 
-	/// Declare a new file scope namespace (implicit)
-	NamespaceSymbol* declareFileScope(const Str& filename);
 	void addType(TypeSymbol* type);
+	void addVariable(VariableSymbol* variable);
 	void addFunction(FunctionSymbol* function);
 	void addImport(const SourceFile* file, ImportEntry&& entry);
 	void error(const ASTNode* node, const Str& message);
 
 	/// Find the first non-implicit parent of a symbol
 	/// Implicit symbols are either file scopes or blocks
-	Symbol* findFirstNonImplicitParent(const Symbol* symbol, bool includeMe = false) const;
+	const Symbol* findFirstNonImplicitParent(const Symbol* symbol, bool includeMe = false) const;
 
 	/// Find the nearest ancestor of a symbol of a specific kind
-	Symbol* findAncestorOfKind(const Symbol* symbol, const SymbolKind& kind) const;
+	Symbol* findAncestorOfKind(const Symbol* symbol, SymbolKind kind) const;
 
 	NamespaceSymbol* getGlobalNamespace() const;
 
 private:
 	Vec<UniquePtr<ast::Program>> programs_;
 	Dict<Str, UniquePtr<NamespaceSymbol>> namespaces_;
-	Dict<Str, NamespaceSymbolDescriptor> namespaceDescriptors_;
-	Dict<Str, NamespaceSymbol*> fileScopes_;
 	Vec<TypeSymbol*> types_;
+	Vec<VariableSymbol*> variables_;
 	Vec<FunctionSymbol*> functions_;
 	NamespaceSymbol* globalNamespace_;
 	Dict<const SourceFile*, Vec<ImportEntry>> imports_;
 
-	Str getNonImplicitSymbolName(const Symbol* symbol) const;
-	TypeSymbol* findTypeSymbol(const SourceFile* fromFile, const Str& symbolText, const Symbol* currentScope = nullptr);
-	TypeSymbol* checkCurrentScopeHierarchy(const Symbol* scope, const Str& name) const;
-	TypeSymbol* checkQualifiedPath(const Vec<Str>& components) const;
-	TypeSymbol* checkFileScope(const SourceFile* fromFile, const Str& symbolText) const;
-	TypeSymbol* checkImports(const SourceFile* fromFile, const Str& symbolText) const;
-	TypeSymbol* checkGlobalNamespace(const Str& symbolText) const;
-	TypeSymbol* lookupInSymbol(const Symbol* context, const Str& name) const;
-	NamespaceSymbol* resolveNamespaceComponent(const Symbol* context, const Str& component) const;
-	TypeSymbol* resolveTypeComponent(const Symbol* context, const Str& component) const;
+	void validateImport(const ImportEntry& entry);
+	void validateImports();
+
+	/// Resolve a symbol within a scope, its ancestors and imports
+	Symbol* resolveSymbol(SymbolKind kind, const Str& symbolText, const Symbol* scope, SymbolResolveFlags flags = SymbolResolveFlags::ALL);
+
+	/// Resolve a symbol within a scope and its ancestors
+	Symbol* resolveSymbolInternal(SymbolKind kind, const Str& symbolText, const Symbol* scope);
 };
 
 MRK_NS_END

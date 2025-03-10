@@ -13,7 +13,7 @@ SymbolVisitor::SymbolVisitor(SymbolTable* symbolTable)
 /// Visit a Program node - entry point for processing a file
 void SymbolVisitor::visit(Program* node) {
 	// Update namespace
-	currentNamespace_ = symbolTable_->declareFileScope(node->sourceFile->filename);
+	currentNamespace_ = symbolTable_->getGlobalNamespace();
 	currentScope_ = currentNamespace_;
 	currentFile_ = node->sourceFile;
 
@@ -159,6 +159,8 @@ void SymbolVisitor::visit(VarDeclStmt* node) {
 	varSymbol->declSpec = currentDeclSpec_;
 	resetModifiers();
 
+	symbolTable_->addVariable(varSymbol.get());
+
 	// Add to current scope
 	currentScope_->members[varName] = Move(varSymbol);
 
@@ -229,6 +231,9 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 		);
 
 		params[param->name->name] = Move(paramSymbol);
+
+		// Bind param source files
+		param->accept(*this);
 	}
 
 	auto funcSymbol = MakeUnique<FunctionSymbol>(
@@ -423,10 +428,8 @@ void SymbolVisitor::visit(UseStmt* node) {
 	bindSourceFile(node);
 
 	// Use statements may only appear as a top level decl
-	// Either check if our nearest non implicit ancestor is our global namespace
-	// or check if the currentScope is our file scope
-	if (!detail::hasFlag(currentScope_->kind, SymbolKind::NAMESPACE) ||
-		currentScope_->parent != symbolTable_->getGlobalNamespace()) {
+	// Check if our current scope the global namespace
+	if (!currentScope_ || currentScope_ != symbolTable_->getGlobalNamespace()) {
 		symbolTable_->error(node, "Use statements may only appear as top level statements");
 		return;
 	}
@@ -435,6 +438,7 @@ void SymbolVisitor::visit(UseStmt* node) {
 		auto entry = ImportEntry{
 			utils::formatCollection(path, "::", [](const auto& item) { return item->name; }),
 			node->file ? node->file->value.lexeme : "",
+			node
 		};
 
 		symbolTable_->addImport(node->sourceFile, Move(entry));

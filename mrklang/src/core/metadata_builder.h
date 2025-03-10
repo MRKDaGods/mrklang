@@ -25,6 +25,7 @@ private:
 	Str translateScopeToTypename(const Str& qualifiedName);
 	void processNamespace(const NamespaceSymbol* symbol);
 	void processSymbol(const Symbol* symbol);
+	void processType(const TypeSymbol* symbol);
 	UniquePtr<Type> createNamespaceType(const NamespaceSymbol* symbol);
 };
 

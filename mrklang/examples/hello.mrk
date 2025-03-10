@@ -1,12 +1,13 @@
 // lang block
 
-use mrkstl, base::azync from "mrk.lib";
-
 namespace ppl {
+	namespace DETAIL {
+		class mrkutils {
+			class xv {
+			}
 
-namespace DETAIL {
-	class mrkutils {
+			func runtimehelper(xv p) -> xv {
+			}
+		}
 	}
-}
-
 }

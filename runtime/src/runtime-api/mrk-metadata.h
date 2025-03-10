@@ -55,20 +55,22 @@ namespace mrklang::runtime::metadata {
 
     struct Type {
         String name;
-        Type* parent;
+		Type* parent; // For nested types
         Container<Field*, UNIQUE> fields;
         Container<Method*, UNIQUE> methods;
 
         struct {
-            bool isPrimitive;       // Is this a fundamental type?
-            bool isValue;           // Value type vs reference type
-            bool isAbstract;        // Cannot be instantiated directly
-            bool isSealed;          // Cannot be inherited from
-            bool isGeneric;         // Is this a generic type?
-            bool isEnum;            // Is this an enum?
-            bool isInterface;       // Is this an interface?
-			bool isNamespace;       // Is this a namespace?
-            uint32_t size;          // Size in bytes of instances
+            bool isPrimitive : 1;       // Is this a fundamental type?
+            bool isValue : 1;           // Value type vs reference type
+            bool isAbstract : 1;        // Cannot be instantiated directly
+            bool isSealed : 1;          // Cannot be inherited from
+            bool isGeneric : 1;         // Is this a generic type?
+            bool isEnum : 1;            // Is this an enum?
+            bool isInterface : 1;       // Is this an interface?
+			bool isClass : 1;           // Is this a class?
+			bool isStruct : 1;          // Is this a struct?
+			bool isNamespace : 1;       // Is this a namespace?
+            uint32_t size;              // Size in bytes of instances
             Container<Type*, UNIQUE> genericParameters;  // For generic types
         } traits;
     };

@@ -6,10 +6,35 @@
 
 MRK_NS_BEGIN_MODULE(semantic)
 
-#define DECLARE_RESOLVED_MEMBERS(...) struct { \
-	bool isResolved; \
-	##__VA_ARGS__ \
-} resolved = {}
+#define DECLARE_RESOLVABLE_MEMBERS(...) struct { \
+    bool isResolved = false; \
+    __VA_ARGS__ \
+	\
+	template<typename... Args> \
+	void resolve(Args... args) { \
+		size_t offset = sizeof(bool); \
+		\
+		auto f = [this, &offset](auto&& x) { \
+			using argType = std::decay_t<decltype(x)>; \
+			\
+			/* Get the real address of the first member */ \
+			/* since "this" is not the actual address of the struct */ \
+			auto realBase = (uintptr_t)&this->isResolved; \
+			\
+			/* Calculate proper alignment */ \
+			constexpr size_t alignment = alignof(argType); \
+			offset = (offset + alignment - 1) & ~(alignment - 1); /* Round up to alignment*/ \
+			\
+			*(argType*)(realBase + offset) = x; \
+			offset += sizeof(argType); \
+		}; \
+		\
+		(f(args), ...); \
+		\
+		isResolved = true; \
+	} \
+} resolver = {}
+
 
 using ASTNode = ast::Node;
 
@@ -59,14 +84,6 @@ struct SemanticError : std::runtime_error {
 		: std::runtime_error(Move(message)), node(node) {}
 };
 
-struct NamespaceSymbolDescriptor {
-	Str name;
-	Vec<const NamespaceSymbol*> variants; // One namespace can have multiple variants in different files
-	bool isImplicit;
-
-	void addVariant(const NamespaceSymbol* variant);
-};
-
 struct Symbol {
 	Str name; // unqualified name
 	Str qualifiedName;
@@ -77,29 +94,38 @@ struct Symbol {
 	Str declSpec; // any additional declaration specs
 	const SymbolKind kind;
 
-	Symbol(const SymbolKind& kind, Str&& name, Symbol* parent, ASTNode* declNode)
+	Symbol(SymbolKind kind, Str&& name, Symbol* parent, ASTNode* declNode)
 		: kind(kind), name(Move(name)), parent(parent), declNode(declNode), accessModifier(AccessModifier::NONE) {
 		qualifiedName = (parent ? (parent->qualifiedName + "::" + this->name) : this->name);
 	}
 
 	virtual Str toString() const { return qualifiedName; }
+	virtual Symbol* getMember(const Str& name) const {
+		auto it = members.find(name);
+		return it != members.end() ? it->second.get() : nullptr;
+	}
 };
 
 struct NamespaceSymbol : Symbol {
-	bool isImplicit; // true if this is a file scope
-	Dict<Str, NamespaceSymbolDescriptor> namespaces;
-	Str nonImplicitQualifiedName;
+	Dict<Str, NamespaceSymbol*> namespaces; // Local name to ptr
 
-	NamespaceSymbol(Str name, bool isImplicit, Symbol* parent, ASTNode* declNode)
-		: Symbol(SymbolKind::NAMESPACE, Move(name), parent, declNode), isImplicit(isImplicit) {
-		nonImplicitQualifiedName = qualifiedName;
+	NamespaceSymbol(Str name, Symbol* parent, ASTNode* declNode)
+		: Symbol(SymbolKind::NAMESPACE, Move(name), parent, declNode) {}
+
+	virtual Symbol* getMember(const Str& name) const override {
+		auto nsIt = namespaces.find(name);
+		if (nsIt != namespaces.end()) {
+			return nsIt->second;
+		}
+
+		return Symbol::getMember(name);
 	}
 };
 
 struct VariableSymbol : Symbol {
 	Str type;
 
-	DECLARE_RESOLVED_MEMBERS(TypeSymbol* type;);
+	DECLARE_RESOLVABLE_MEMBERS(const TypeSymbol* type;);
 
 	VariableSymbol(Str name, Str type, Symbol* parent, ASTNode* declNode)
 		: Symbol(SymbolKind::VARIABLE, Move(name), parent, declNode), type(Move(type)) {}
@@ -109,7 +135,7 @@ struct FunctionParameterSymbol : Symbol {
 	Str type;
 	bool isParams;
 
-	DECLARE_RESOLVED_MEMBERS(TypeSymbol* type;);
+	DECLARE_RESOLVABLE_MEMBERS(const TypeSymbol* type;);
 
 	FunctionParameterSymbol(Str name, Str type, bool isParams, Symbol* parent, ASTNode* declNode)
 		: Symbol(SymbolKind::FUNCTION_PARAMETER, Move(name), parent, declNode), type(Move(type)), isParams(isParams) {}
@@ -119,7 +145,7 @@ struct FunctionSymbol : Symbol {
 	Str returnType;
 	Dict<Str, UniquePtr<FunctionParameterSymbol>> parameters; // name, type
 
-	DECLARE_RESOLVED_MEMBERS(TypeSymbol* returnType;);
+	DECLARE_RESOLVABLE_MEMBERS(const TypeSymbol* returnType;);
 
 	FunctionSymbol(Str name, Str returnType, Dict<Str, UniquePtr<FunctionParameterSymbol>>&& parameters, Symbol* parent, ASTNode* declNode)
 		: Symbol(SymbolKind::FUNCTION, Move(name), parent, declNode), returnType(Move(returnType)), parameters(Move(parameters)) {}
@@ -128,7 +154,7 @@ struct FunctionSymbol : Symbol {
 struct TypeSymbol : Symbol {
 	Vec<Str> baseTypes;
 
-	DECLARE_RESOLVED_MEMBERS(Vec<Str> baseTypes;);
+	DECLARE_RESOLVABLE_MEMBERS(Vec<const TypeSymbol*> baseTypes;);
 
 	TypeSymbol(const SymbolKind& kind, Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
 		: Symbol(kind, Move(name), parent, declNode), baseTypes(Move(baseTypes)) {}

@@ -5,6 +5,7 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/symbol_table.h"
+#include "metadata_builder.h"
 
 #include <fstream>
 
@@ -68,6 +69,7 @@ int Core::build() {
 	}
 
 	// Build metadata then validate
+	buildMetadata();
 
 
 	return 0;
@@ -147,7 +149,7 @@ void Core::readSourceFiles(const Vec<Str>& files) {
 			continue;
 		}
 
-		sourceFile->filename = utils::concat("<file>", sourceFile->filename, "</file>");
+		// sourceFile->filename = utils::concat("<file>", sourceFile->filename, "</file>");
 		sourceFiles_.push_back(Move(sourceFile));
 	}
 }
@@ -175,18 +177,8 @@ bool Core::resolveSymbols() {
 void Core::buildMetadata() {
 	MRK_INFO("Building metadata...");
 
-	using namespace mrklang::runtime::metadata;
-
-	auto image = MakeUnique<Image>();
-	image->name = "mrklangTest";
-
-	auto globalNmsSymbol = symbolTable_.getGlobalNamespace();
-	if (!globalNmsSymbol) {
-		MRK_ERROR("Global namespace not found");
-		return;
-	}
-
-
+	MetadataBuilder builder(symbolTable_);
+	builder.build();
 }
 
 MRK_NS_END

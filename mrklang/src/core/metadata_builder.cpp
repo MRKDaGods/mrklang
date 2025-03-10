@@ -11,6 +11,12 @@ void MetadataBuilder::build() {
 	// Create image
 	image_ = MakeUnique<Image>();
 	image_->name = "mrklang-img-test-v1";
+
+	// Process global namespace
+	auto globalNamespace = symbolTable_.getGlobalNamespace();
+	processNamespace(globalNamespace);
+
+	int xzv = 0;
 }
 
 Str MetadataBuilder::translateScopeToTypename(const Str& qualifiedName) {
@@ -19,8 +25,8 @@ Str MetadataBuilder::translateScopeToTypename(const Str& qualifiedName) {
 	size_t pos = 0;
 	
 	while ((pos = result.find("::", pos)) != Str::npos) {
-		result.replace(pos, 2, "___");
-		pos += 3;
+		result.replace(pos, 2, "__");
+		pos += 2;
 	}
 
 	return result;
@@ -45,7 +51,7 @@ void MetadataBuilder::processNamespace(const NamespaceSymbol* symbol) {
 		image_->types.push_back(Move(nmsType));
 
 		// Is this our global namespace?
-		if (translatedName == "___global") {
+		if (translatedName == "__global") {
 			globalNamespaceType_ = typePtr;
 		}
 	}
@@ -53,6 +59,11 @@ void MetadataBuilder::processNamespace(const NamespaceSymbol* symbol) {
 	// TODO: use visitor pattern?
 	for (const auto& [_, symbol] : symbol->members) {
 		processSymbol(symbol.get());
+	}
+
+	// Recurse into child namespaces
+	for (const auto& [_, childNs] : symbol->namespaces) {
+		processNamespace(childNs);
 	}
 }
 
@@ -62,16 +73,40 @@ void MetadataBuilder::processSymbol(const Symbol* symbol) {
 			processNamespace(dynamic_cast<const NamespaceSymbol*>(symbol));
 			break;
 
+		case SymbolKind::TYPE:
+		case SymbolKind::CLASS:
+		case SymbolKind::STRUCT:
+		case SymbolKind::INTERFACE:
+			processType(dynamic_cast<const TypeSymbol*>(symbol));
+			break;
+
 		case SymbolKind::FUNCTION:
 
 			break;
 	}
 }
 
+void MetadataBuilder::processType(const TypeSymbol* symbol) {
+	auto type = MakeUnique<Type>();
+	type->name = translateScopeToTypename(symbol->qualifiedName);
+
+	if (detail::hasFlag(symbol->kind, SymbolKind::CLASS)) {
+		type->traits.isClass = true;
+	}
+	else if (detail::hasFlag(symbol->kind, SymbolKind::STRUCT)) {
+		type->traits.isStruct = true;
+	}
+	else if (detail::hasFlag(symbol->kind, SymbolKind::INTERFACE)) {
+		type->traits.isInterface = true;
+	}
+
+	// Add to image
+	image_->types.push_back(Move(type));
+}
+
 UniquePtr<Type> MetadataBuilder::createNamespaceType(const NamespaceSymbol* symbol) {
 	auto type = MakeUnique<Type>();
 	type->name = translateScopeToTypename(symbol->qualifiedName);
-	type->parent = nullptr; // TODO: make them a hierarchy?
 	type->traits.isNamespace = true;
 
 	return type;

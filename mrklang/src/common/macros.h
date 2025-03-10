@@ -27,7 +27,7 @@
 		return lhs; \
 	} \
 	namespace detail { \
-		inline bool hasFlag(const name& value, const name& flag) { \
+		inline bool hasFlag(name value, name flag) { \
 			return (value & flag) != name::NONE; \
 		} \
 	}

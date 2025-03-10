@@ -1,7 +1,7 @@
 // Logging utils
 
+use ppl::DETAIL;
 
-namespace ppl {
-struct runtimehelper : DETAIL::mrkutils {
-}
+
+struct runtimehelper : mrkutils::xv {
 }
