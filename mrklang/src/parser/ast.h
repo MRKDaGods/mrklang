@@ -26,6 +26,7 @@ MRK_NS_BEGIN_MODULE(ast)
     X(NamespaceAccessExpr) \
     X(MemberAccessExpr) \
     X(ArrayExpr) \
+	X(ArrayAccessExpr) \
     X(ExprStmt) \
     X(VarDeclStmt) \
     X(BlockStmt) \
@@ -69,6 +70,9 @@ struct Node {
 	/// Source file where this node is located
 	/// Set by SymbolVisitor
 	const SourceFile* sourceFile;
+
+	/// Whether this node should be discarded
+	bool discard = false;
 
 	Node(Token&& startToken) : startToken(Move(startToken)), sourceFile(nullptr) {}
 	virtual ~Node() = default;
@@ -240,6 +244,17 @@ struct ArrayExpr : ExprNode { // [expr1, expr2, etc]
 	void accept(ASTVisitor& visitor) override;
 };
 
+struct ArrayAccessExpr : ExprNode {
+	UniquePtr<ExprNode> target;
+	UniquePtr<ExprNode> index;
+
+	ArrayAccessExpr(Token&& startToken, UniquePtr<ExprNode>&& target, UniquePtr<ExprNode>&& index)
+		: ExprNode(Move(startToken)), target(Move(target)), index(Move(index)) {}
+
+	Str toString() const override;
+	void accept(ASTVisitor& visitor) override;
+};
+
 //==============================================================================
 // Statement nodes
 //==============================================================================
@@ -294,7 +309,7 @@ struct ParamDeclStmt : StmtNode {
 	ParamDeclStmt(Token&& start, UniquePtr<TypeReferenceExpr>&& type, UniquePtr<IdentifierExpr>&& name, UniquePtr<ExprNode>&& initializer, bool isParams)
 		: StmtNode(Move(start)), type(Move(type)), name(Move(name)), initializer(Move(initializer)), isParams(isParams) {}
 
-	Str getSignature();
+	Str getSignature(bool includeName = true);
 	Str toString() const override;
 	void accept(ASTVisitor& visitor) override;
 };
@@ -314,7 +329,7 @@ struct FuncDeclStmt : StmtNode {
 		UniquePtr<BlockStmt>&& body)
 		: StmtNode(Move(start)), name(Move(name)), parameters(Move(parameters)), returnType(Move(returnType)), body(Move(body)) {}
 
-	Str getSignature() const;
+	Str getSignature(bool withReturnType = true) const;
 	Str toString() const override;
 	void accept(ASTVisitor& visitor) override;
 };

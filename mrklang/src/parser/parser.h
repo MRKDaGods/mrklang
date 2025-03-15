@@ -67,8 +67,12 @@ private:
 	UniquePtr<ExprNode> parseTernary();
 	UniquePtr<ExprNode> parseLogicalOr();
 	UniquePtr<ExprNode> parseLogicalAnd();
+	UniquePtr<ExprNode> parseBitwiseOr();
+	UniquePtr<ExprNode> parseBitwiseXor();
+	UniquePtr<ExprNode> parseBitwiseAnd();
 	UniquePtr<ExprNode> parseEquality();
 	UniquePtr<ExprNode> parseComparison();
+	UniquePtr<ExprNode> parseShift();
 	UniquePtr<ExprNode> parseTerm();
 	UniquePtr<ExprNode> parseFactor();
 	UniquePtr<ExprNode> parseUnary();
@@ -76,6 +80,7 @@ private:
 	UniquePtr<ExprNode> parseFunctionCall(UniquePtr<ExprNode> target);
 	UniquePtr<ExprNode> parseNamespaceAccess(UniquePtr<IdentifierExpr> identifier);
 	UniquePtr<ExprNode> parseMemberAccess(UniquePtr<ExprNode> target);
+	UniquePtr<ExprNode> parseArrayAccess(UniquePtr<ExprNode> target);
 	UniquePtr<ExprNode> parseArray();
 	UniquePtr<ExprNode> parseInterpolatedString();
 };

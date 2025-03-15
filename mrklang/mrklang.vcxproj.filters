@@ -48,7 +48,13 @@
     <ClCompile Include="src\core\core.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\core\metadata_builder.cpp">
+    <ClCompile Include="src\semantic\expression_resolver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\semantic\type_system.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\codegen\function_generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -95,9 +101,6 @@
     <ClInclude Include="src\semantic\access_modifier.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\semantic\type_system.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\core\error_reporter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -113,10 +116,16 @@
     <ClInclude Include="src\core\core.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\core\metadata_builder.h">
+    <ClInclude Include="src\semantic\symbols.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\semantic\symbols.h">
+    <ClInclude Include="src\semantic\expression_resolver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\semantic\type_system.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\codegen\function_generator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

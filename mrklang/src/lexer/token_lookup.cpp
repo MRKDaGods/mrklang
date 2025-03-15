@@ -105,6 +105,8 @@ OperatorMap TokenLookup::createOperatorMap() {
         MAKE_OP(OP_BOR, "|"),
         MAKE_OP(OP_BNOT, "~"),
         MAKE_OP(OP_BXOR, "^"),
+		MAKE_OP(OP_SHL, "<<"),
+		MAKE_OP(OP_SHR, ">>"),
 
         // Special Operators
         MAKE_OP(OP_DOUBLE_COLON, "::"),

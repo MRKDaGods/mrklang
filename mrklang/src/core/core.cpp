@@ -5,7 +5,7 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/symbol_table.h"
-#include "metadata_builder.h"
+#include "codegen/cpp_generator.h"
 
 #include <fstream>
 
@@ -13,9 +13,11 @@ MRK_NS_BEGIN
 
 using namespace ast;
 using namespace semantic;
+using namespace codegen;
 
 Core::Core(const Vec<Str>& files)
 	: errorReporter_(ErrorReporter::instance()) {
+	readGlobalSymbolFile();
 	readSourceFiles(files);
 }
 
@@ -68,11 +70,34 @@ int Core::build() {
 		return 1;
 	}
 
-	// Build metadata then validate
-	buildMetadata();
+	// Codegen...
+	MRK_INFO("Generating code...");
+	CppGenerator generator(&symbolTable_);
+	auto code = generator.generateRuntimeCode();
 
+	MRK_INFO("Generated code:\n{}", code);
+
+	// Write to file
+	std::ofstream out("runtime_generated.cpp");
+	out << code;
+	out.close();
 
 	return 0;
+}
+
+void Core::readGlobalSymbolFile() {
+	// Injected
+	auto globalSyms = R"(
+		// Injected global symbols
+		__declspec(INJECT_GLOBAL) class __globalType {
+			public static __declspec(INJECT_GLOBAL) func __globalFunction() {}
+		}
+	)";
+
+	auto globalFile = MakeUnique<SourceFile>();
+	globalFile->filename = "<global>";
+	globalFile->contents.raw = globalSyms;
+	sourceFiles_.push_back(Move(globalFile));
 }
 
 UniquePtr<SourceFile> Core::readSourceFile(const Str& filename) {
@@ -172,13 +197,6 @@ bool Core::resolveSymbols() {
 
 	MRK_INFO("Symbol table built successfully");
 	return true;
-}
-
-void Core::buildMetadata() {
-	MRK_INFO("Building metadata...");
-
-	MetadataBuilder builder(symbolTable_);
-	builder.build();
 }
 
 MRK_NS_END

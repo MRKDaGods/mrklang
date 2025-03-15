@@ -2,6 +2,7 @@
 #include "common/utils.h"
 #include "common/logging.h"
 #include "symbol_visitor.h"
+#include "expression_resolver.h"
 #include "core/error_reporter.h"
 
 #include <iostream>
@@ -19,11 +20,14 @@ MRK_NS_BEGIN_MODULE(semantic)
 //		  sym1			    sym2
 
 SymbolTable::SymbolTable(Vec<UniquePtr<ast::Program>>&& programs)
-	: programs_(Move(programs)), globalNamespace_(nullptr) {}
+	: programs_(Move(programs)), globalNamespace_(nullptr), globalType_(nullptr), globalFunction_(nullptr) {}
 
 void SymbolTable::build() {
-	// Create global namespace
-	globalNamespace_ = declareNamespace("__global");
+	// Create globals
+	setupGlobals();
+
+	// Initialize type system
+	typeSystem_ = MakeUnique<TypeSystem>(this);
 
 	SymbolVisitor collector(this);
 
@@ -128,6 +132,10 @@ NamespaceSymbol* SymbolTable::declareNamespace(const Str& nsName, NamespaceSymbo
 
 void SymbolTable::addType(TypeSymbol* type) {
 	types_.push_back(type);
+
+	if (type->declSpec == "INJECT_GLOBAL") {
+		globalType_ = type;
+	}
 }
 
 void SymbolTable::addVariable(VariableSymbol* variable) {
@@ -136,6 +144,10 @@ void SymbolTable::addVariable(VariableSymbol* variable) {
 
 void SymbolTable::addFunction(FunctionSymbol* function) {
 	functions_.push_back(function);
+
+	if (function->declSpec == "INJECT_GLOBAL") {
+		globalFunction_ = function;
+	}
 }
 
 void SymbolTable::addImport(const SourceFile* file, ImportEntry&& entry) {
@@ -177,8 +189,67 @@ Symbol* SymbolTable::findAncestorOfKind(const Symbol* symbol, SymbolKind kind) c
 	return parent;
 }
 
-NamespaceSymbol* SymbolTable::getGlobalNamespace() const {
-	return globalNamespace_;
+bool SymbolTable::isLValue(ast::ExprNode* expr) {
+	// Variables are l-values
+	if (auto* identExpr = dynamic_cast<ast::IdentifierExpr*>(expr)) {
+		auto it = resolvedSymbols_.find(identExpr);
+		if (it != resolvedSymbols_.end() &&
+			(it->second->kind == SymbolKind::VARIABLE ||
+				it->second->kind == SymbolKind::FUNCTION_PARAMETER)) {
+			return true;
+		}
+	}
+
+	// Member access can be l-value if it's a field
+	if (auto* memberAccess = dynamic_cast<ast::MemberAccessExpr*>(expr)) {
+		auto it = resolvedSymbols_.find(memberAccess->member.get());
+		if (it != resolvedSymbols_.end() && it->second->kind == SymbolKind::VARIABLE) {
+			return true;
+		}
+	}
+
+	// Array access
+	if (dynamic_cast<ast::ArrayAccessExpr*>(expr)) {
+		return true;
+	}
+
+	return false;
+}
+
+TypeSymbol* SymbolTable::resolveType(ast::TypeReferenceExpr* typeRef, const Symbol* scope) {
+	auto fullName = typeRef->getTypeName();
+	auto typeSymbol = resolveSymbol(SymbolKind::TYPE, fullName, scope);
+	if (!typeSymbol) {
+		error(typeRef, std::format("Could not resolve type '{}'", fullName));
+		return nullptr;
+	}
+
+	return dynamic_cast<TypeSymbol*>(typeSymbol);
+}
+
+void SymbolTable::setNodeScope(const ASTNode* node, const Symbol* scope) {
+	nodeScopes_[node] = scope;
+}
+
+const Symbol* SymbolTable::getNodeScope(const ASTNode* node) {
+	auto it = nodeScopes_.find(node);
+	return it != nodeScopes_.end() ? it->second : nullptr;
+}
+
+void SymbolTable::setNodeResolvedSymbol(const ast::ExprNode* node, Symbol* symbol) {
+	resolvedSymbols_[node] = symbol;
+}
+
+Symbol* SymbolTable::getNodeResolvedSymbol(const ast::ExprNode* node) const {
+	if (!node) return nullptr;
+
+	auto it = resolvedSymbols_.find(node);
+	return it != resolvedSymbols_.end() ? it->second : nullptr;
+}
+
+void SymbolTable::setupGlobals() {
+	// Create global namespace
+	globalNamespace_ = declareNamespace("__global");
 }
 
 void SymbolTable::validateImport(const ImportEntry& entry) {
@@ -223,11 +294,16 @@ Symbol* SymbolTable::resolveSymbol(SymbolKind kind, const Str& symbolText, const
 	return nullptr;
 }
 
-Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolText, const Symbol* scope) {
+Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolText, const Symbol* scope, const Symbol* requestor) {
 	// Find the symbol in the scope
 	// symbolText may be a raw unqualified name or a qualified name(namespace + nested class)
 	if (!scope) { // We reached the top
 		return nullptr;
+	}
+
+	// If scope is global nms, check in our globalType too if the target is a function/var
+	if (requestor != globalNamespace_ && scope == globalNamespace_ && detail::hasFlag(kind, SymbolKind::FUNCTION | SymbolKind::VARIABLE)) {
+		return resolveSymbolInternal(kind, symbolText, globalType_, globalNamespace_);
 	}
 
 	// MRK_INFO("Resolving symbol '{}' in scope '{}'", symbolText, scope->toString());
@@ -255,7 +331,7 @@ Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolTex
 			current = next;
 		}
 
-		return resolveSymbolInternal(kind, realSymbolName, current);
+		return resolveSymbolInternal(kind, realSymbolName, current, requestor);
 	}
 
 	// Unqualified name
@@ -265,7 +341,7 @@ Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolTex
 	}
 
 exit:
-	return resolveSymbolInternal(kind, symbolText, scope->parent);
+	return resolveSymbolInternal(kind, symbolText, scope->parent, requestor);
 }
 
 void SymbolTable::resolve() {
@@ -298,7 +374,7 @@ void SymbolTable::resolve() {
 	}
 
 
-	//// Resolve functions
+	// Resolve functions
 	for (auto function : functions_) {
 		// Resolve return type
 		auto returnTypeSymbol = resolveSymbol(SymbolKind::TYPE, function->returnType, function->parent);
@@ -308,7 +384,7 @@ void SymbolTable::resolve() {
 		}
 
 		function->resolver.resolve(returnTypeSymbol);
-		
+
 		// Resolve parameters
 		for (auto& [name, param] : function->parameters) {
 			auto paramTypeSymbol = resolveSymbol(SymbolKind::TYPE, param->type, function->parent);
@@ -319,6 +395,12 @@ void SymbolTable::resolve() {
 
 			param->resolver.resolve(paramTypeSymbol);
 		}
+	}
+
+	// Resolve expressions..
+	ExpressionResolver exprResolver(this);
+	for (const auto& program : programs_) {
+		exprResolver.visit(program.get());
 	}
 }
 

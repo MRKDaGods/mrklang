@@ -626,12 +626,51 @@ UniquePtr<ExprNode> Parser::parseLogicalOr() {
 }
 
 UniquePtr<ExprNode> Parser::parseLogicalAnd() {
-	auto expr = parseEquality();
+	auto expr = parseBitwiseOr();
 
 	// a && b
 	while (match(TokenType::OP_AND)) {
 		auto startToken = previous_;
 
+		Token op = getPrevious();
+		auto right = parseBitwiseOr();
+		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
+	}
+
+	return expr;
+}
+
+UniquePtr<ExprNode> Parser::parseBitwiseOr() {
+	auto expr = parseBitwiseXor();
+
+	while (match(TokenType::OP_BOR)) {
+		auto startToken = previous_;
+		Token op = getPrevious();
+		auto right = parseBitwiseXor();
+		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
+	}
+
+	return expr;
+}
+
+UniquePtr<ExprNode> Parser::parseBitwiseXor() {
+	auto expr = parseBitwiseAnd();
+
+	while (match(TokenType::OP_BXOR)) {
+		auto startToken = previous_;
+		Token op = getPrevious();
+		auto right = parseBitwiseAnd();
+		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
+	}
+
+	return expr;
+}
+
+UniquePtr<ExprNode> Parser::parseBitwiseAnd() {
+	auto expr = parseEquality();
+
+	while (match(TokenType::OP_BAND)) {
+		auto startToken = previous_;
 		Token op = getPrevious();
 		auto right = parseEquality();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
@@ -656,12 +695,25 @@ UniquePtr<ExprNode> Parser::parseEquality() {
 }
 
 UniquePtr<ExprNode> Parser::parseComparison() {
-	auto expr = parseTerm();
+	auto expr = parseShift();
 
 	// a > b
 	while (match(TokenType::OP_GT) || match(TokenType::OP_GE) || match(TokenType::OP_LT) || match(TokenType::OP_LE)) {
 		auto startToken = previous_;
 
+		Token op = getPrevious();
+		auto right = parseShift();
+		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
+	}
+
+	return expr;
+}
+
+UniquePtr<ExprNode> Parser::parseShift() {
+	auto expr = parseTerm();
+
+	while (match(TokenType::OP_SHL) || match(TokenType::OP_SHR)) {
+		auto startToken = previous_;
 		Token op = getPrevious();
 		auto right = parseTerm();
 		expr = MakeUnique<BinaryExpr>(Move(startToken), Move(expr), op, Move(right));
@@ -702,7 +754,7 @@ UniquePtr<ExprNode> Parser::parseFactor() {
 
 UniquePtr<ExprNode> Parser::parseUnary() {
 	// !a -a
-	if (match(TokenType::OP_NOT) || match(TokenType::OP_MINUS)) {
+	if (match(TokenType::OP_NOT) || match(TokenType::OP_MINUS) || match(TokenType::OP_BNOT)) {
 		auto startToken = previous_;
 
 		Token op = getPrevious();
@@ -800,21 +852,36 @@ UniquePtr<ExprNode> Parser::parseNamespaceAccess(UniquePtr<IdentifierExpr> ident
 }
 
 UniquePtr<ExprNode> Parser::parseMemberAccess(UniquePtr<ExprNode> target) {
-	while (match(TokenType::OP_DOT) || match(TokenType::OP_ARROW)) {
-		auto startToken = previous_;
+	while (true) {
+		if (match(TokenType::OP_DOT) || match(TokenType::OP_ARROW)) {
+			auto startToken = previous_;
 
-		Token op = getPrevious();
-		auto member = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected member name"));
+			Token op = getPrevious();
+			auto member = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected member name"));
 
-		target = MakeUnique<MemberAccessExpr>(Move(startToken), Move(target), op, Move(member));
+			target = MakeUnique<MemberAccessExpr>(Move(startToken), Move(target), op, Move(member));
 
-		// check if it is a function call
-		if (check(TokenType::LPAREN)) {
-			target = parseFunctionCall(Move(target));
+			// check if it is a function call
+			if (check(TokenType::LPAREN)) {
+				target = parseFunctionCall(Move(target));
+			}
+		}
+		else if (match(TokenType::LBRACKET)) {
+			target = parseArrayAccess(Move(target));
+		}
+		else {
+			break;
 		}
 	}
 
 	return target;
+}
+
+UniquePtr<ExprNode> Parser::parseArrayAccess(UniquePtr<ExprNode> target) {
+	auto startToken = previous_; // '['
+	auto index = parseExpression();
+	consume(TokenType::RBRACKET, "Expected ']' after index");
+	return MakeUnique<ArrayAccessExpr>(Move(startToken), Move(target), Move(index));
 }
 
 UniquePtr<ExprNode> Parser::parseArray() {

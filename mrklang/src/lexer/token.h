@@ -62,8 +62,18 @@ struct Token {
 	Str lexeme;
 	LexerPosition position;
 
-	Token(TokenType type, Str lexeme, LexerPosition position)
-		: type(type), lexeme(std::move(lexeme)), position(position) {}
+	// For literal tokens
+	struct Flags {
+		bool isUnsigned : 1;
+		bool isLong : 1;
+		bool isShort : 1;
+
+		bool isFloat : 1;
+		bool isDouble : 1;
+	} flags;
+
+	Token(TokenType type, Str lexeme, LexerPosition position, Flags flags = {})
+		: type(type), lexeme(std::move(lexeme)), position(position), flags(flags) {}
 
 	Token() : Token(TokenType::END_OF_FILE, "", { 1u, 1u, 1u }) {}
 

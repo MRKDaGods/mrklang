@@ -70,6 +70,9 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(ProjectDir)src;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -128,7 +131,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\common\macros.h" />
+    <ClInclude Include="src\common\types.h" />
+    <ClInclude Include="src\metadata\metadata_loader.h" />
+    <ClInclude Include="src\metadata\metadata_structures.h" />
     <ClInclude Include="src\runtime-api\mrk-metadata.h" />
+    <ClInclude Include="src\runtime.h" />
+    <ClInclude Include="src\type_system\array_type.h" />
+    <ClInclude Include="src\type_system\class_type.h" />
+    <ClInclude Include="src\type_system\field.h" />
+    <ClInclude Include="src\type_system\method.h" />
+    <ClInclude Include="src\type_system\primitive_type.h" />
+    <ClInclude Include="src\type_system\type.h" />
+    <ClInclude Include="src\type_system\type_registry.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\metadata\metadata_loader.cpp" />
+    <ClCompile Include="src\runtime.cpp" />
+    <ClCompile Include="src\type_system\type_registry.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

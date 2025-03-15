@@ -1,13 +1,20 @@
-// lang block
+﻿// lang block
 
 namespace ppl {
-	namespace DETAIL {
-		class mrkutils {
-			class xv {
-			}
+    namespace DETAIL {
+        class mrkutils {
+            class xv {
+            }
 
-			func runtimehelper(xv p) -> xv {
-			}
-		}
-	}
+            func runtimehelper(xv p) -> xv {
+                __cpp {
+                    #include <iostream>
+                    
+                    void print() { std::cout << "test" << std::endl;
+                }
+                    
+                var<int> x;
+            }
+        }
+    }
 }

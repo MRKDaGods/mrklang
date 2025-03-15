@@ -1,0 +1,41 @@
+﻿func print(string msg) {
+	msg += "123";
+}
+
+func main() -> void {
+	print("Hello, World!");
+}
+
+var AMMAR = 9999;
+if (AMMAR > 8) {
+	print("AMMAR is greater than 8");
+}
+
+class TestClass {
+	struct TestStruct {
+		var<int> x;
+	}
+
+	var y = 9;
+	var<double> pi = 3.14159;
+	
+	func ctor() {
+		print("Hello, World!");
+
+		if (pi > 3.0) {
+			print("Pi is greater than 3.0");
+		}
+		else {
+			print("Pi is less than or equal to 3.0");
+		}
+	}
+
+	func dtor() {
+		print("Goodbye, World!");
+	}
+
+
+	func test() -> void {
+		print("Hello, World!");
+	}
+}

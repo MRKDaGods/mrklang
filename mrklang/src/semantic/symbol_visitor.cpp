@@ -32,13 +32,11 @@ void SymbolVisitor::visit(Program* node) {
 }
 
 void SymbolVisitor::visit(LiteralExpr* node) {
-	bindSourceFile(node);
-
-	// None
+	preprocessNode(node);
 }
 
 void SymbolVisitor::visit(InterpolatedStringExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	for (const auto& part : node->parts) {
 		part->accept(*this);
@@ -46,25 +44,25 @@ void SymbolVisitor::visit(InterpolatedStringExpr* node) {
 }
 
 void SymbolVisitor::visit(InteropCallExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// TODO: impl
 }
 
 void SymbolVisitor::visit(IdentifierExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// None
 }
 
 void SymbolVisitor::visit(TypeReferenceExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// None
 }
 
 void SymbolVisitor::visit(CallExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	if (node->target) {
 		node->target->accept(*this);
@@ -76,20 +74,20 @@ void SymbolVisitor::visit(CallExpr* node) {
 }
 
 void SymbolVisitor::visit(BinaryExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->left->accept(*this);
 	node->right->accept(*this);
 }
 
 void SymbolVisitor::visit(UnaryExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->right->accept(*this);
 }
 
 void SymbolVisitor::visit(TernaryExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->condition->accept(*this);
 	node->thenBranch->accept(*this);
@@ -97,7 +95,7 @@ void SymbolVisitor::visit(TernaryExpr* node) {
 }
 
 void SymbolVisitor::visit(AssignmentExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->target->accept(*this);
 
@@ -107,7 +105,7 @@ void SymbolVisitor::visit(AssignmentExpr* node) {
 }
 
 void SymbolVisitor::visit(NamespaceAccessExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	for (const auto& part : node->path) {
 		part->accept(*this);
@@ -115,33 +113,47 @@ void SymbolVisitor::visit(NamespaceAccessExpr* node) {
 }
 
 void SymbolVisitor::visit(MemberAccessExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->target->accept(*this);
 }
 
 void SymbolVisitor::visit(ArrayExpr* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	for (const auto& elem : node->elements) {
 		elem->accept(*this);
 	}
 }
 
+void SymbolVisitor::visit(ArrayAccessExpr* node) {
+	preprocessNode(node);
+
+	node->target->accept(*this);
+	node->index->accept(*this);
+}
+
 void SymbolVisitor::visit(ExprStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->expr->accept(*this);
 }
 
 void SymbolVisitor::visit(VarDeclStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Check for const initialization
 	if (detail::isCONST(currentModifiers_) && !node->initializer) {
 		symbolTable_->error(node, "Const variable must be initialized");
 		resetModifiers();
 		return;
+	}
+
+	// Check if function is global
+	bool isGlobal = currentScope_->kind == SymbolKind::NAMESPACE;
+	if (isGlobal) {
+		// Push global type scope
+		pushScope(symbolTable_->getGlobalType());
 	}
 
 	auto typeName = node->typeName ? node->typeName->getTypeName() : "object";
@@ -168,10 +180,15 @@ void SymbolVisitor::visit(VarDeclStmt* node) {
 	if (node->initializer) {
 		node->initializer->accept(*this);
 	}
+
+	if (isGlobal) {
+		// Pop global type scope
+		popScope();
+	}
 }
 
 void SymbolVisitor::visit(BlockStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	auto blockName = "block_" + std::to_string(reinterpret_cast<uintptr_t>(node));
 	auto blockSymbol = MakeUnique<BlockSymbol>(Move(blockName), currentScope_, node);
@@ -199,13 +216,13 @@ void SymbolVisitor::visit(BlockStmt* node) {
 }
 
 void SymbolVisitor::visit(ParamDeclStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Processed by FuncDeclStmt
 }
 
 void SymbolVisitor::visit(FuncDeclStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Collect parameters
 	bool hasVarargs = false; // Varargs must be last parameter
@@ -236,10 +253,36 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 		param->accept(*this);
 	}
 
+	// Check if function is global
+	bool isGlobal = currentScope_->kind == SymbolKind::NAMESPACE;
+	if (isGlobal) {
+		// Push global type scope
+		pushScope(symbolTable_->getGlobalType());
+	}
+
+	// 15/3/2025
+	// I am tight on time, so Ill be disabling function overloading for now
+	// node->getSignature is going to be node->name->name for that change
+	// In the future, set it back to node->getSignature(false) and implement function overloading
+	// in expression_resolver.cpp::visit(CallExpr* node)
+
+	// Check for duplicate function
+	if (currentScope_->members.find(node->name->name) != currentScope_->members.end()) {
+		symbolTable_->error(node, "Duplicate function declaration");
+		resetModifiers();
+
+		if (isGlobal) {
+			popScope();
+		}
+
+		return;
+	}
+
 	auto funcSymbol = MakeUnique<FunctionSymbol>(
-		node->getSignature(),
+		node->name->name,
 		node->returnType ? node->returnType->getTypeName() : "void",
 		Move(params),
+		isGlobal,
 		currentScope_,
 		node
 	);
@@ -256,7 +299,7 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 		param.second->parent = funcPtr;
 	}
 
-	currentScope_->members[node->getSignature()] = Move(funcSymbol);
+	currentScope_->members[node->name->name] = Move(funcSymbol);
 
 	// Register to function list
 	symbolTable_->addFunction(funcPtr);
@@ -269,10 +312,22 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 
 	// Pop function scope
 	popScope();
+
+	if (isGlobal) {
+		// Pop global type scope
+		popScope();
+	}
 }
 
 void SymbolVisitor::visit(IfStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
+
+	// Check is global
+	bool isGlobal = currentScope_->kind == SymbolKind::NAMESPACE;
+	if (isGlobal) {
+		// Push global function scope
+		pushScope(symbolTable_->getGlobalFunction());
+	}
 
 	node->condition->accept(*this);
 	node->thenBlock->accept(*this);
@@ -280,10 +335,15 @@ void SymbolVisitor::visit(IfStmt* node) {
 	if (node->elseBlock) {
 		node->elseBlock->accept(*this);
 	}
+
+	if (isGlobal) {
+		// Pop global function scope
+		popScope();
+	}
 }
 
 void SymbolVisitor::visit(ForStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	if (node->init) {
 		node->init->accept(*this);
@@ -299,7 +359,7 @@ void SymbolVisitor::visit(ForStmt* node) {
 }
 
 void SymbolVisitor::visit(ForeachStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->variable->accept(*this);
 	node->collection->accept(*this);
@@ -307,20 +367,20 @@ void SymbolVisitor::visit(ForeachStmt* node) {
 }
 
 void SymbolVisitor::visit(WhileStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	node->condition->accept(*this);
 	node->body->accept(*this);
 }
 
 void SymbolVisitor::visit(LangBlockStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Untracked
 }
 
 void SymbolVisitor::visit(AccessModifierStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Validate modifiers
 	// Ensure no duplicates and no conflicts
@@ -380,7 +440,7 @@ void SymbolVisitor::visit(AccessModifierStmt* node) {
 
 
 void SymbolVisitor::visit(NamespaceDeclStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Namespaces may only be declared at global scope or within another namespace
 	if (currentScope_->kind != SymbolKind::NAMESPACE &&
@@ -419,13 +479,13 @@ void SymbolVisitor::visit(NamespaceDeclStmt* node) {
 }
 
 void SymbolVisitor::visit(DeclSpecStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	currentDeclSpec_ = node->spec->name;
 }
 
 void SymbolVisitor::visit(UseStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Use statements may only appear as a top level decl
 	// Check if our current scope the global namespace
@@ -446,7 +506,7 @@ void SymbolVisitor::visit(UseStmt* node) {
 }
 
 void SymbolVisitor::visit(ReturnStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	if (node->value) {
 		node->value->accept(*this);
@@ -454,11 +514,11 @@ void SymbolVisitor::visit(ReturnStmt* node) {
 }
 
 void SymbolVisitor::visit(EnumDeclStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	// Enums may not exist within a function or an interface
 	// Ali is bronze
-	if (detail::hasFlag(currentScope_->kind, SymbolKind::FUNCTION) || detail::hasFlag(currentScope_->kind, SymbolKind::INTERFACE) ||
+	if (detail::hasFlag(currentScope_->kind, SymbolKind::FUNCTION | SymbolKind::INTERFACE) ||
 		symbolTable_->findAncestorOfKind(currentScope_, SymbolKind::FUNCTION | SymbolKind::INTERFACE)) {
 		symbolTable_->error(node, "Enums may not exist within a function or an interface");
 		resetModifiers();
@@ -498,10 +558,13 @@ void SymbolVisitor::visit(EnumDeclStmt* node) {
 	}
 
 	currentScope_->members[node->name->name] = Move(enumSymbol);
+
+	// Add to type list
+	symbolTable_->addType(static_cast<TypeSymbol*>(enumSymbol.get()));
 }
 
 void SymbolVisitor::visit(TypeDeclStmt* node) {
-	bindSourceFile(node);
+	preprocessNode(node);
 
 	UniquePtr<Symbol> typeSymbol;
 	Symbol* typePtr = nullptr;
@@ -553,7 +616,7 @@ void SymbolVisitor::visit(TypeDeclStmt* node) {
 	currentScope_->members[node->name->getTypeName()] = Move(typeSymbol);
 
 	// Add to type list
-	symbolTable_->addType(dynamic_cast<TypeSymbol*>(typePtr));
+	symbolTable_->addType(static_cast<TypeSymbol*>(typePtr));
 
 	// Push type scope
 	pushScope(typePtr);
@@ -565,8 +628,10 @@ void SymbolVisitor::visit(TypeDeclStmt* node) {
 	popScope();
 }
 
-void SymbolVisitor::bindSourceFile(ast::Node* node) {
+void SymbolVisitor::preprocessNode(ast::Node* node) {
+	// Bind source file, and set current scope
 	node->sourceFile = currentFile_;
+	symbolTable_->setNodeScope(node, currentScope_);
 }
 
 void SymbolVisitor::pushScope(Symbol* scope) {

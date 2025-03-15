@@ -21,8 +21,7 @@
 MRK_NS_BEGIN
 
 Lexer::Lexer(const Str& source, uint32_t maxErrors)
-	: source_(source), position_({ 0, 1, 1 }), maxErrors_(maxErrors), positionTree_(this) {
-}
+	: source_(source), position_({ 0, 1, 1 }), maxErrors_(maxErrors), positionTree_(this) {}
 
 const Vec<Token>& Lexer::tokenize() {
 	while (!isAtEnd()) {
@@ -34,10 +33,14 @@ const Vec<Token>& Lexer::tokenize() {
 			break;
 		}
 
-		BEGIN_READ_CONTEXT();
-
 		// Test the character
 		char ch = peek();
+		if (ch < -1) { // invalid character, skip silently
+			advance();
+			continue;
+		}
+
+		BEGIN_READ_CONTEXT();
 
 		if (isdigit(ch)) { // number literal
 			readNumberLiteral();
@@ -82,12 +85,12 @@ const Str& Lexer::getSource() const {
 	return source_;
 }
 
-void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& position) {
-	tokens_.push_back({ type, std::move(lexeme), position });
+void Lexer::addToken(TokenType type, Str& lexeme, const LexerPosition& position, Token::Flags flags) {
+	tokens_.push_back(Token(type, std::move(lexeme), position, flags));
 }
 
 void Lexer::addToken(TokenType type, const LexerPosition& position) {
-	tokens_.push_back({ type, "", position });
+	tokens_.push_back(Token(type, "", position));
 }
 
 void Lexer::error(const Str& message, const LexerPosition& position, uint32_t length) {
@@ -130,6 +133,8 @@ void Lexer::readNumberLiteral() {
 	bool isHex = false;
 	Str numberBuffer;
 
+	Token::Flags flags{};
+
 	while (!isAtEnd()) {
 		char ch = tolower(peek());
 
@@ -159,6 +164,21 @@ void Lexer::readNumberLiteral() {
 			numberBuffer += ch;					// valid only when isHex is true
 		}
 		else { // Any other invalid character
+			// Check for unsigned/long/double/float/short suffix
+			static const Str suffixes = "ulfds";
+
+			for (int suffIdx = suffixes.find(ch); suffIdx != Str::npos; suffIdx = suffixes.find(ch)) {
+				switch (suffIdx) {
+					case 0: flags.isUnsigned = true; break;
+					case 1: flags.isLong = true; break;
+					case 2: flags.isFloat = true; break;
+					case 3: flags.isDouble = true; break;
+					case 4: flags.isShort = true; break;
+				}
+
+				advance();
+			}
+
 			break;
 		}
 
@@ -166,11 +186,13 @@ void Lexer::readNumberLiteral() {
 		advance();
 	}
 
+	isFloatingPoint |= flags.isFloat || flags.isDouble;
+
 	TokenType type = isFloatingPoint ? TokenType::LIT_FLOAT
 		: isHex ? TokenType::LIT_HEX
 		: TokenType::LIT_INT;
 
-	addToken(type, numberBuffer, START_POSITION);
+	addToken(type, numberBuffer, START_POSITION, flags);
 }
 
 void Lexer::readIdentifierOrKeyword() {
@@ -296,7 +318,7 @@ void Lexer::readComment(TokenType commentType) {
 		if (commentType == TokenType::COMMENT_SINGLE && ch == '\n') {
 			break;
 		}
-		
+
 		if (commentType == TokenType::COMMENT_MULTI_START && ch == '*' && peek() == '/') {
 			advance(); // Skip '/'
 

@@ -7,8 +7,20 @@
 
 MRK_NS_BEGIN_MODULE(ast)
 
-Str ParamDeclStmt::getSignature() {
-	return Fmt("{}{} {}", isParams ? "params " : "", type->getTypeName(), name->name);
+Str ParamDeclStmt::getSignature(bool includeName) {
+	Str result;
+
+	if (isParams) {
+		result += "params ";
+	}
+
+	result += type->getTypeName();
+
+	if (includeName) {
+		result += " " + name->name;
+	}
+
+	return result;
 }
 
 Str TypeReferenceExpr::getTypeName() const {
@@ -29,16 +41,20 @@ Str TypeReferenceExpr::getTypeName() const {
 	return result;
 }
 
-Str FuncDeclStmt::getSignature() const {
+Str FuncDeclStmt::getSignature(bool withReturnType) const {
 	// name(params) -> returnType
 	Str signature = Fmt("{}(", name->name);
 	if (!parameters.empty()) {
 		signature += utils::formatCollection(parameters,
-			[](const auto& param) { return param->getSignature(); });
+			[](const auto& param) { return param->getSignature(false); });
 	}
 
-	signature += Fmt(") -> {}", 
-		returnType ? returnType->getTypeName() : "void");
+	signature += ")";
+
+	if (withReturnType) {
+		signature += Fmt(" -> {}",
+			returnType ? returnType->getTypeName() : "void");
+	}
 
 	return signature;
 }
@@ -112,6 +128,11 @@ Str MemberAccessExpr::toString() const {
 Str ArrayExpr::toString() const {
 	return Fmt("ArrayExpr([{}])",
 		utils::formatCollection(elements));
+}
+
+Str ArrayAccessExpr::toString() const {
+	return Fmt("ArrayAccessExpr({}, {})",
+		target->toString(), index->toString());
 }
 
 Str ExprStmt::toString() const {
@@ -323,6 +344,7 @@ void AssignmentExpr::accept(ASTVisitor& visitor) { visitor.visit(this); }
 void NamespaceAccessExpr::accept(ASTVisitor& visitor) { visitor.visit(this); }
 void MemberAccessExpr::accept(ASTVisitor& visitor) { visitor.visit(this); }
 void ArrayExpr::accept(ASTVisitor& visitor) { visitor.visit(this); }
+void ArrayAccessExpr::accept(ASTVisitor& visitor) { visitor.visit(this); }
 
 void ExprStmt::accept(ASTVisitor& visitor) { visitor.visit(this); }
 void VarDeclStmt::accept(ASTVisitor& visitor) { visitor.visit(this); }

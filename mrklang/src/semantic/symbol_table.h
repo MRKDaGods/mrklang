@@ -4,6 +4,7 @@
 #include "optional"
 #include "parser/ast.h"
 #include "symbols.h"
+#include "type_system.h"
 
 MRK_NS_BEGIN_MODULE(semantic)
 
@@ -51,7 +52,31 @@ public:
 	/// Find the nearest ancestor of a symbol of a specific kind
 	Symbol* findAncestorOfKind(const Symbol* symbol, SymbolKind kind) const;
 
-	NamespaceSymbol* getGlobalNamespace() const;
+	/// The global namespace
+	NamespaceSymbol* getGlobalNamespace() const { return globalNamespace_; }
+	TypeSystem* getTypeSystem() const { return typeSystem_.get(); }
+
+	/// Determine if an expression is an l-value
+	bool isLValue(ast::ExprNode* expr);
+
+	/// Resolve a type from a TypeReferenceExpr
+	TypeSymbol* resolveType(ast::TypeReferenceExpr* typeRef, const Symbol* scope);
+
+	void setNodeScope(const ASTNode* node, const Symbol* scope);
+	const Symbol* getNodeScope(const ASTNode* node);
+
+	void setNodeResolvedSymbol(const ast::ExprNode* node, Symbol* symbol);
+	Symbol* getNodeResolvedSymbol(const ast::ExprNode* node) const;
+
+	/// Resolve a symbol within a scope, its ancestors and imports
+	Symbol* resolveSymbol(SymbolKind kind, const Str& symbolText, const Symbol* scope, SymbolResolveFlags flags = SymbolResolveFlags::ALL);
+
+	const Vec<UniquePtr<ast::Program>>& getPrograms() const { return programs_; }
+	Vec<TypeSymbol*> getTypes() const { return types_; }
+	Vec<VariableSymbol*> getVariables() const { return variables_; }
+	Vec<FunctionSymbol*> getFunctions() const { return functions_; }
+	TypeSymbol* getGlobalType() const { return globalType_; }
+	FunctionSymbol* getGlobalFunction() const { return globalFunction_; }
 
 private:
 	Vec<UniquePtr<ast::Program>> programs_;
@@ -61,15 +86,24 @@ private:
 	Vec<FunctionSymbol*> functions_;
 	NamespaceSymbol* globalNamespace_;
 	Dict<const SourceFile*, Vec<ImportEntry>> imports_;
+	UniquePtr<TypeSystem> typeSystem_;
+	TypeSymbol* globalType_;
+	FunctionSymbol* globalFunction_;
+
+	/// Keep track of the scope for each AST node
+	Dict<const ASTNode*, const Symbol*> nodeScopes_;
+
+	/// Keep track of resolved symbols for each expr node
+	Dict<const ast::ExprNode*, Symbol*> resolvedSymbols_;
+
+	/// Setup global symbols
+	void setupGlobals();
 
 	void validateImport(const ImportEntry& entry);
 	void validateImports();
 
-	/// Resolve a symbol within a scope, its ancestors and imports
-	Symbol* resolveSymbol(SymbolKind kind, const Str& symbolText, const Symbol* scope, SymbolResolveFlags flags = SymbolResolveFlags::ALL);
-
 	/// Resolve a symbol within a scope and its ancestors
-	Symbol* resolveSymbolInternal(SymbolKind kind, const Str& symbolText, const Symbol* scope);
+	Symbol* resolveSymbolInternal(SymbolKind kind, const Str& symbolText, const Symbol* scope, const Symbol* requestor = nullptr);
 };
 
 MRK_NS_END

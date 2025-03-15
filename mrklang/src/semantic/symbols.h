@@ -7,8 +7,8 @@
 MRK_NS_BEGIN_MODULE(semantic)
 
 #define DECLARE_RESOLVABLE_MEMBERS(...) struct { \
-    bool isResolved = false; \
-    __VA_ARGS__ \
+	bool isResolved = false; \
+	__VA_ARGS__ \
 	\
 	template<typename... Args> \
 	void resolve(Args... args) { \
@@ -51,7 +51,8 @@ struct TypeSymbol;
 	X(INTERFACE, 6) \
 	X(ENUM, 7) \
 	X(ENUM_MEMBER, 8) \
-	X(BLOCK, 9)
+	X(BLOCK, 9) \
+	X(PRIMITIVE_TYPE, 10)
 
 enum class SymbolKind : uint32_t {
 	NONE = 0,
@@ -59,7 +60,8 @@ enum class SymbolKind : uint32_t {
 	SYMBOL_KINDS
 	#undef X
 
-	TYPE = CLASS | STRUCT | INTERFACE | ENUM
+	TYPE = CLASS | STRUCT | INTERFACE | ENUM | PRIMITIVE_TYPE,
+	IDENTIFIER = VARIABLE | FUNCTION | FUNCTION_PARAMETER | ENUM_MEMBER | TYPE | NAMESPACE
 };
 
 IMPLEMENT_FLAGS_OPERATORS_INLINE(SymbolKind);
@@ -142,13 +144,27 @@ struct FunctionParameterSymbol : Symbol {
 };
 
 struct FunctionSymbol : Symbol {
+	using ParameterDict = Dict<Str, UniquePtr<FunctionParameterSymbol>>;
+
 	Str returnType;
-	Dict<Str, UniquePtr<FunctionParameterSymbol>> parameters; // name, type
+	ParameterDict parameters; // name, type
+	bool isGlobal;
 
 	DECLARE_RESOLVABLE_MEMBERS(const TypeSymbol* returnType;);
 
-	FunctionSymbol(Str name, Str returnType, Dict<Str, UniquePtr<FunctionParameterSymbol>>&& parameters, Symbol* parent, ASTNode* declNode)
-		: Symbol(SymbolKind::FUNCTION, Move(name), parent, declNode), returnType(Move(returnType)), parameters(Move(parameters)) {}
+	FunctionSymbol(Str name, Str returnType, ParameterDict&& parameters, bool isGlobal,
+		Symbol* parent, ASTNode* declNode)
+		: Symbol(SymbolKind::FUNCTION, Move(name), parent, declNode),
+		returnType(Move(returnType)), parameters(Move(parameters)), isGlobal(isGlobal) {}
+
+	virtual Symbol* getMember(const Str& name) const override {
+		auto it = parameters.find(name);
+		if (it != parameters.end()) {
+			return it->second.get();
+		}
+
+		return Symbol::getMember(name);
+	}
 };
 
 struct TypeSymbol : Symbol {

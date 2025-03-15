@@ -134,27 +134,29 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\codegen\cpp_generator.cpp" />
+    <ClCompile Include="src\codegen\function_generator.cpp" />
     <ClCompile Include="src\core\core.cpp" />
     <ClCompile Include="src\core\error_reporter.cpp" />
-    <ClCompile Include="src\core\metadata_builder.cpp" />
     <ClCompile Include="src\lexer\lexer_position_tree.cpp" />
     <ClCompile Include="src\lexer\token_lookup.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\ast.cpp" />
     <ClCompile Include="src\parser\parser.cpp" />
+    <ClCompile Include="src\semantic\expression_resolver.cpp" />
     <ClCompile Include="src\semantic\symbol_visitor.cpp" />
     <ClCompile Include="src\semantic\symbol_table.cpp" />
+    <ClCompile Include="src\semantic\type_system.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\codegen\cpp_generator.h" />
+    <ClInclude Include="src\codegen\function_generator.h" />
     <ClInclude Include="src\core\core.h" />
     <ClInclude Include="src\core\error_reporter.h" />
     <ClInclude Include="src\common\logging.h" />
     <ClInclude Include="src\common\macros.h" />
     <ClInclude Include="src\common\types.h" />
     <ClInclude Include="src\common\utils.h" />
-    <ClInclude Include="src\core\metadata_builder.h" />
     <ClInclude Include="src\core\profiler.h" />
     <ClInclude Include="src\core\source_file.h" />
     <ClInclude Include="src\lexer\lexer_logging.h" />
@@ -165,6 +167,7 @@
     <ClInclude Include="src\parser\ast.h" />
     <ClInclude Include="src\parser\parser.h" />
     <ClInclude Include="src\semantic\access_modifier.h" />
+    <ClInclude Include="src\semantic\expression_resolver.h" />
     <ClInclude Include="src\semantic\symbols.h" />
     <ClInclude Include="src\semantic\symbol_visitor.h" />
     <ClInclude Include="src\semantic\symbol_table.h" />

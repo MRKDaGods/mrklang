@@ -94,6 +94,8 @@ TOKEN(OP_BAND)              /// Bitwise AND                  &
 TOKEN(OP_BOR)               /// Bitwise OR                   |
 TOKEN(OP_BNOT)              /// Bitwise NOT                  ~
 TOKEN(OP_BXOR)              /// Bitwise XOR                  ^
+TOKEN(OP_SHL)               /// Shift left                   <<
+TOKEN(OP_SHR)               /// Shift right                  >>
 
 // --- Special Operators ---
 TOKEN(OP_DOUBLE_COLON)      /// Scope resolution             ::

@@ -20,12 +20,12 @@ private:
 	ErrorReporter& errorReporter_;
 	semantic::SymbolTable symbolTable_;
 
+	void readGlobalSymbolFile();
 	UniquePtr<SourceFile> readSourceFile(const Str& filename);
 	bool lexFile(SourceFile* srcFile, Vec<Token>& tokens);
 	UniquePtr<ast::Program> parseFile(const SourceFile* sourceFile, Vec<Token>&& tokens);
 	void readSourceFiles(const Vec<Str>& files);
 	bool resolveSymbols();
-	void buildMetadata();
 };
 
 MRK_NS_END

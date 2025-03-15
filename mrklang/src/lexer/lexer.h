@@ -52,7 +52,7 @@ private:
 	/// Adds a token to the list of tokens.
 	/// @param type The type of the token to add.
 	/// @param lexeme The lexeme (text) of the token to add.
-	void addToken(TokenType type, Str& lexeme, const LexerPosition& position);
+	void addToken(TokenType type, Str& lexeme, const LexerPosition& position, Token::Flags flags = {});
 
 	/// Adds a token to the list of tokens.
 	/// @param type The type of the token to add.

@@ -13,7 +13,6 @@ class SymbolTable;
 struct Symbol;
 struct NamespaceSymbol;
 
-using namespace semantic;
 using namespace ast;
 
 /// Collects symbols from an AST and populates a symbol table
@@ -37,6 +36,7 @@ public:
 	void visit(NamespaceAccessExpr* node) override;
 	void visit(MemberAccessExpr* node) override;
 	void visit(ArrayExpr* node) override;
+	void visit(ArrayAccessExpr* node) override;
 
 	void visit(ExprStmt* node) override;
 	void visit(VarDeclStmt* node) override;
@@ -65,7 +65,8 @@ private:
 	Str currentDeclSpec_;
 	std::stack<Symbol*> scopeStack_;
 
-	void bindSourceFile(ast::Node* node);
+	/// Preprocess a node before visiting its children
+	void preprocessNode(ast::Node* node);
 	void pushScope(Symbol* scope);
 	void popScope();
 	void resetModifiers();
