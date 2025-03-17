@@ -246,85 +246,109 @@ void MetadataWriter::generateTypeDefintions() {
 }
 
 void MetadataWriter::generateFieldDefinitions() {
-	auto fields = symbolTable_->getVariables();
+	const auto& types = symbolTable_->getTypes();
+
+	uint32_t totalFields = 0;
+	for (const auto& type : types) {
+		for (const auto& [_, member] : type->members) {
+			if (member->kind == SymbolKind::VARIABLE) {
+				totalFields++;
+			}
+		}
+	}
 
 	// Write field count
-	uint32_t fieldCount = static_cast<uint32_t>(fields.size());
-	file_.write(CAST(fieldCount), sizeof(uint32_t));
+	file_.write(CAST(totalFields), sizeof(uint32_t));
 
-	// Generate field definitions
-	for (size_t i = 0; i < fieldCount; i++) {
-		const auto* field = fields[i];
+	// Types again..
+	uint32_t fieldIndex = 0;
+	for (const auto& type : types) {
+		for (const auto& [_, member] : type->members) {
+			if (member->kind == SymbolKind::VARIABLE) {
+				const auto* field = static_cast<const VariableSymbol*>(member.get());
 
-		// Create FieldDefinition
-		FieldDefinition fieldDef{};
+				// Create FieldDefinition
+				FieldDefinition fieldDef{};
 
-		// Set name handle
-		fieldDef.name = stringHandleMap_[field->name];
+				// Set name handle
+				fieldDef.name = stringHandleMap_[field->name];
 
-		// Set type handle
-		fieldDef.typeHandle = static_cast<uint32_t>(
-			std::distance(symbolTable_->getTypes().begin(),
-				std::find(symbolTable_->getTypes().begin(), symbolTable_->getTypes().end(), field->resolver.type)) + 1
-			);
+				// Set type handle
+				fieldDef.typeHandle = static_cast<uint32_t>(
+					std::distance(symbolTable_->getTypes().begin(),
+						std::find(symbolTable_->getTypes().begin(), symbolTable_->getTypes().end(), field->resolver.type)) + 1
+					);
 
-		// Flags
-		fieldDef.flags = static_cast<uint32_t>(field->accessModifier);
-		fieldDef.token = static_cast<uint32_t>(i + 1);
+				// Flags
+				fieldDef.flags = static_cast<uint32_t>(field->accessModifier);
+				fieldDef.token = ++fieldIndex;
 
-		// Write field definition
-		file_.write(CAST(fieldDef), sizeof(FieldDefinition));
+				// Write field definition
+				file_.write(CAST(fieldDef), sizeof(FieldDefinition));
 
-		// Register field definition
-		registration_->fieldTokenMap[field] = fieldDef.token;
+				// Register field definition
+				registration_->fieldTokenMap[field] = fieldDef.token;
+			}
+		}
 	}
 }
 
 void MetadataWriter::generateMethodDefinitions() {
-	const auto& functions = symbolTable_->getFunctions();
+	const auto& types = symbolTable_->getTypes();
 
-	// Count total methods across all types
-	uint32_t totalMethods = static_cast<uint32_t>(functions.size());
+	uint32_t totalMethods = 0;
+	for (const auto& type : types) {
+		for (const auto& [_, member] : type->members) {
+			if (member->kind == SymbolKind::FUNCTION) {
+				totalMethods++;
+			}
+		}
+	}
+
 	file_.write(CAST(totalMethods), sizeof(uint32_t));
 
 	// Track parameter index for mapping methods to their parameters
 	uint32_t parameterStartIndex = 0;
 
-	// Generate method definitions
-	for (size_t i = 0; i < totalMethods; i++) {
-		const auto* func = functions[i];
+	uint32_t methodIndex = 0;
+	for (const auto& type : types) {
+		for (const auto& [_, member] : type->members) {
+			if (member->kind == SymbolKind::FUNCTION) {
+				const auto* func = static_cast<const FunctionSymbol*>(member.get());
 
-		// Create MethodDefinition
-		MethodDefinition methodDef{};
+				// Generate MethodDefinition
+				MethodDefinition methodDef{};
 
-		// Set name handle
-		methodDef.name = stringHandleMap_[func->name];
+				// Set name handle
+				methodDef.name = stringHandleMap_[func->name];
 
-		// Find return type handle (1-based index in the type table)
-		methodDef.returnTypeHandle = static_cast<uint32_t>(
-			std::distance(symbolTable_->getTypes().begin(),
-				std::find(symbolTable_->getTypes().begin(), symbolTable_->getTypes().end(), func->resolver.returnType)) + 1
-			);
+				// Find return type handle (1-based index in the type table)
+				methodDef.returnTypeHandle = static_cast<uint32_t>(
+					std::distance(symbolTable_->getTypes().begin(),
+						std::find(symbolTable_->getTypes().begin(), symbolTable_->getTypes().end(), func->resolver.returnType)) + 1
+					);
 
-		// Set parameter info
-		methodDef.parameterStart = parameterStartIndex;
-		methodDef.parameterCount = static_cast<uint32_t>(func->parameters.size());
+				// Set parameter info
+				methodDef.parameterStart = parameterStartIndex;
+				methodDef.parameterCount = static_cast<uint32_t>(func->parameters.size());
 
-		// Update parameter start index for next method
-		parameterStartIndex += methodDef.parameterCount;
+				// Update parameter start index for next method
+				parameterStartIndex += methodDef.parameterCount;
 
-		// Set flags based on access modifiers
-		methodDef.flags = static_cast<uint32_t>(func->accessModifier);
-		methodDef.implFlags = 0; // Default implementation flags for now
+				// Set flags based on access modifiers
+				methodDef.flags = static_cast<uint32_t>(func->accessModifier);
+				methodDef.implFlags = 0; // Default implementation flags for now
 
-		// Set token based on function index (1-based)
-		methodDef.token = static_cast<uint32_t>(i + 1);
+				// Set token based on function index (1-based)
+				methodDef.token = ++methodIndex;
 
-		// Write method definition
-		file_.write(CAST(methodDef), sizeof(MethodDefinition));
+				// Write method definition
+				file_.write(CAST(methodDef), sizeof(MethodDefinition));
 
-		// Register method definition
-		registration_->methodTokenMap[func] = methodDef.token;
+				// Register method definition
+				registration_->methodTokenMap[func] = methodDef.token;
+			}
+		}
 	}
 }
 
@@ -338,26 +362,32 @@ void MetadataWriter::generateParameterDefinitions() {
 	// Write parameter count
 	file_.write(CAST(totalParams), sizeof(uint32_t));
 
-	// Generate parameter definitions
-	for (const auto* func : symbolTable_->getFunctions()) {
-		for (const auto& [paramName, param] : func->parameters) {
-			// Create ParameterDefinition
-			ParameterDefinition paramDef{};
+	// Start from types again
+	const auto& types = symbolTable_->getTypes();
+	for (const auto& type : types) {
+		for (const auto& [_, member] : type->members) {
+			if (member->kind == SymbolKind::FUNCTION) {
+				const auto* func = static_cast<const FunctionSymbol*>(member.get());
+				for (const auto& [paramName, param] : func->parameters) {
+					// Create ParameterDefinition
+					ParameterDefinition paramDef{};
 
-			// Set name handle
-			paramDef.name = stringHandleMap_[paramName];
+					// Set name handle
+					paramDef.name = stringHandleMap_[paramName];
 
-			// Find type handle (1-based index in the type table)
-			paramDef.typeHandle = static_cast<uint32_t>(
-				std::distance(symbolTable_->getTypes().begin(),
-					std::find(symbolTable_->getTypes().begin(), symbolTable_->getTypes().end(), param->resolver.type)) + 1
-				);
+					// Find type handle (1-based index in the type table)
+					paramDef.typeHandle = static_cast<uint32_t>(
+						std::distance(symbolTable_->getTypes().begin(),
+							std::find(symbolTable_->getTypes().begin(), symbolTable_->getTypes().end(), param->resolver.type)) + 1
+						);
 
-			// Set flags
-			paramDef.flags = 0; // TODO: impl params, etc
+					// Set flags
+					paramDef.flags = 0; // TODO: impl params, etc
 
-			// Write parameter definition
-			file_.write(CAST(paramDef), sizeof(ParameterDefinition));
+					// Write parameter definition
+					file_.write(CAST(paramDef), sizeof(ParameterDefinition));
+				}
+			}
 		}
 	}
 }

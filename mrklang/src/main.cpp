@@ -8,7 +8,7 @@ using namespace mrklang;
 int main() {
     std::cout << "mrklang codedom alpha\n";
 
-    Vec<Str> sourceFilenames = { /*"examples/hello.mrk", "examples/runtime.mrk" */ "examples/main.mrk" };
+    Vec<Str> sourceFilenames = { /*"examples/hello.mrk", */ "examples/web.mrk", "examples/main.mrk" };
     Core core(sourceFilenames);
     int result = core.build();
 

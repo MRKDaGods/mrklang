@@ -19,7 +19,9 @@ int main() {
 		return 1;
 	}
 
-	MRK_INFO("Runtime initialized");
+	MRK_INFO("Runtime initialized! Running mrklang_runtime");
+
+	Runtime::instance().runProgram("mrklang_runtime");
 
 	return 0;
 }

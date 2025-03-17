@@ -23,7 +23,9 @@ public:
 
 	Str generateRuntimeCode();
 	Str getReferenceTypeName(const TypeSymbol* type) const;
-	Str getMappedName(const Symbol* symbol) const;
+	Str getMappedName(const Symbol* symbol);
+
+	void setMappedName(const Symbol* symbol, const Str& name);
 
 	template<bool indent = false>
 	void write(const Str& line) {
@@ -73,7 +75,9 @@ private:
 	Vec<StaticFieldInfo> staticFields_;
 
 	Str translateTypeName(const Str& typeName) const;
+	void generateForwardDeclarations();
 	void generateType(const TypeSymbol* type);
+	void generateFunctionDeclaration(const FunctionSymbol* function, bool external, Vec<Str>* paramNames = nullptr);
 	void generateFunction(const FunctionSymbol* function);
 	void generateVariable(const VariableSymbol* variable, const TypeSymbol* enclosingType);
 	void generateStaticFieldInitializers();

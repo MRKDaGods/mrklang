@@ -1,6 +1,7 @@
 #include "symbol_visitor.h"
 #include "symbol_table.h"
 #include "common/utils.h"
+#include "common/declspecs.h"
 
 #include <algorithm>
 
@@ -176,6 +177,9 @@ void SymbolVisitor::visit(VarDeclStmt* node) {
 
 	// Add to current scope
 	currentScope_->members[varName] = Move(varSymbol);
+
+	// uhhhhhh
+	node->name->accept(*this);
 
 	// Visit typename too..
 	if (node->typeName) {
@@ -384,7 +388,7 @@ void SymbolVisitor::visit(LangBlockStmt* node) {
 	preprocessNode(node);
 
 	// Check if it's a rigid block
-	if (currentDeclSpec_ == "NO_MOVE") {
+	if (currentDeclSpec_ == DECLSPEC_NO_MOVE) {
 		symbolTable_->addRigidLanguageBlock(node);
 	}
 

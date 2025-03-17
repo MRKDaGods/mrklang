@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
+
 typedef void (*NativeMethodPtr)(void**, void*);
 
 // Macros for method registration and execution
@@ -9,8 +12,7 @@ typedef void (*NativeMethodPtr)(void**, void*);
 #define MRK_RUNTIME_REGISTER_STATIC_FIELD(token, field, init) \
     Runtime::instance().registerStaticField(token, reinterpret_cast<void*>(&field), reinterpret_cast<void*>(init))
 
-#define MRK_RUNTIME_REGISTER_TYPE(token, type) \
-    (void)token; (void)type // Type registration is handled separately
+#define MRK_RUNTIME_REGISTER_TYPE(token, type)
 
 // Helper macros for method calls
 #define MRK_CALL_METHOD(methodToken, instance, args, result) \
@@ -82,3 +84,24 @@ typedef void (*NativeMethodPtr)(void**, void*);
 
 #define MRK_CREATE_REFERENCE_OBJECT(type) \
     new ReferenceTypeObject(type)
+
+#define MRK_INVOKE_ICALL(token, ...) \
+    Runtime::instance().invokeInternalCall(token __VA_OPT__(,) __VA_ARGS__)
+
+using __mrkprimitive_void = void;
+using __mrkprimitive_bool = bool;
+using __mrkprimitive_char = char;
+using __mrkprimitive_i8 = int8_t;
+using __mrkprimitive_byte = uint8_t;
+using __mrkprimitive_short = int16_t;
+using __mrkprimitive_ushort = uint16_t;
+using __mrkprimitive_int = int32_t;
+using __mrkprimitive_uint = uint32_t;
+using __mrkprimitive_long = int64_t;
+using __mrkprimitive_ulong = uint64_t;
+using __mrkprimitive_float = float;
+using __mrkprimitive_double = double;
+using __mrkprimitive_string = std::string;
+using __mrkprimitive_object = void*;
+
+#define __mrk_null nullptr

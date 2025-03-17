@@ -134,6 +134,9 @@
     <ClInclude Include="src\codegen\metadata_writer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\common\declspecs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="examples\hello.mrk" />
@@ -141,5 +144,6 @@
       <Filter>Header Files</Filter>
     </None>
     <None Include="examples\runtime.mrk" />
+    <None Include="examples\web.mrk" />
   </ItemGroup>
 </Project>

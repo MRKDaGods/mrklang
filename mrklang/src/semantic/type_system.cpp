@@ -101,6 +101,7 @@ size_t TypeSystem::getTypeSize(const TypeSymbol* type) const {
 			case TypeKind::I64:
 			case TypeKind::U64:
 			case TypeKind::F64:
+			case TypeKind::PTR:
 				return 8;
 
 			default:
@@ -316,7 +317,7 @@ TypeSymbol* TypeSystem::resolveTypeFromLiteral(ast::LiteralExpr* literalExpr) co
 
 		case TokenType::LIT_NULL:
 			// Null is compatible with any reference type
-			return getBuiltinType(TypeKind::OBJECT);
+			return getBuiltinType(TypeKind::PTR);
 
 		default:
 			return errorType_;
@@ -364,6 +365,7 @@ void TypeSystem::initializeBuiltinTypes() {
 	createBuiltinType(TypeKind::F64, "double");
 	createBuiltinType(TypeKind::STRING, "string");
 	createBuiltinType(TypeKind::OBJECT, "object");
+	createBuiltinType(TypeKind::PTR, "void*");
 }
 
 MRK_NS_END

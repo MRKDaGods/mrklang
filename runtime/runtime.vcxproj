@@ -135,6 +135,7 @@
     <ClInclude Include="src\common\logging.h" />
     <ClInclude Include="src\common\macros.h" />
     <ClInclude Include="src\common\types.h" />
+    <ClInclude Include="src\icalls.h" />
     <ClInclude Include="src\metadata\metadata_loader.h" />
     <ClInclude Include="src\metadata\metadata_structures.h" />
     <ClInclude Include="src\runtime-api\mrk-metadata.h" />
@@ -151,9 +152,11 @@
     <ClInclude Include="src\type_system\type_registry.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\icalls.cpp" />
     <ClCompile Include="src\metadata\metadata_loader.cpp" />
     <ClCompile Include="src\mrkmain.cpp" />
     <ClCompile Include="src\runtime.cpp" />
+    <ClCompile Include="src\runtime_generated.cpp" />
     <ClCompile Include="src\type_system\type_registry.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

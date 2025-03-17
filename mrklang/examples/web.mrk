@@ -1,0 +1,13 @@
+﻿namespace mrk {
+    namespace web {
+        class HttpMethod {
+            static var<int> GET = 0;
+            static var<int> POST = 1;
+        }
+
+        class Http {
+            static __declspec(NATIVE) func request(string url, int method) -> bool {
+            }
+        }
+    }
+}

@@ -2,7 +2,9 @@
 
 #include "metadata/metadata_loader.h"
 #include "type_system/type_registry.h"
+#include "common/logging.h"
 #include "runtime_object.h"
+#include "icalls.h"
 
 MRK_NS_BEGIN_MODULE(runtime)
 
@@ -35,11 +37,30 @@ public:
     bool isInitialized() const { return initialized_; }
 
     /// Execute a method by its metadata token
-    bool executeMethod(uint32_t methodToken, RuntimeObject* instance, const Vec<RuntimeObject*>& args, RuntimeObject* result = nullptr);
+    bool executeMethod(uint32_t methodToken, void* instance, const Vec<void*>& args, void* result);
 
     /// Run a program starting from its entry point
     bool runProgram(const Str& assemblyName);
 
+	void registerInternalCall(const Str& signature, InternalCall call);
+
+	template<typename ...Args>
+	void* invokeInternalCall(uint32_t methodToken, Args... args) {
+		auto method = getTypeRegistry().getMethodByToken(methodToken);
+		if (!method) {
+			MRK_ERROR("Method not found for token: {}", methodToken);
+			return nullptr;
+		}
+
+		auto sig = getInternalCallSignature(method);
+		auto it = internalCalls_.find(sig);
+		if (it == internalCalls_.end()) {
+			MRK_ERROR("Internal call not found: {}", sig);
+			return nullptr;
+		}
+
+		return it->second(args...);
+	}
 	
 	// Runtime externals
 	// Method
@@ -53,11 +74,13 @@ public:
 private:
 	bool initialized_ = false;
 	RuntimeOptions options_;
+	Dict<Str, InternalCall> internalCalls_;
 
     Runtime() = default;
     ~Runtime() = default;
 
 	TypeRegistry& getTypeRegistry() { return TypeRegistry::instance(); }
+	Str getInternalCallSignature(const Method* method) const;
 };
 
 MRK_NS_END

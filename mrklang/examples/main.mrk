@@ -1,26 +1,41 @@
-﻿__declspec(NO_MOVE) __cpp {
-	#include <iostream>
+﻿use mrk::web;
+    
+__declspec(NO_MOVE) __cpp {
+    #include <iostream>
 }
 
-var<int> x;
-
 func readNumber() -> int {
-	__declspec(MAPPED) var num = x;
+    __declspec(MAPPED) var<int> num;
 
-	__cpp {
-		std::cin >> num;
-	}
+    __cpp {
+        std::cin >> num;
+    }
+
+    return num;
+}
+
+func print(string msg) {
+    __declspec(MAPPED) var m = msg;
+    
+    __cpp {
+        std::cout << m << std::endl;
+    }
 }
 
 func main() {
-	__cpp {
-		std::cout << "hey there, enter number: ";
-	}
+    __cpp {
+        std::cout << "hey there, enter number: ";
+    }
 
-	__declspec(MAPPED) var num = readNumber();
-	__cpp {
-		std::cout << "u entered: " << num << std::endl;
-	}
+    __declspec(MAPPED) var num = readNumber();
+    __cpp {
+        std::cout << "u entered: " << num << std::endl;
+    }
+    
+    var<bool> res = Http::request("AMMAR MAGNUS.com", HttpMethod::GET);
+    print(res ? "NICE" : "NO");
 }
+
+__declspec(NATIVE) func testNative() {}
 
 main();

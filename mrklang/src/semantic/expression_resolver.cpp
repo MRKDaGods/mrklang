@@ -5,7 +5,7 @@
 MRK_NS_BEGIN_MODULE(semantic)
 
 ExpressionResolver::ExpressionResolver(SymbolTable* symbolTable)
-	: symbolTable_(symbolTable), currentFile_(nullptr) {}
+	: symbolTable_(symbolTable), currentFile_(nullptr), extraSearchScope_(nullptr) {}
 
 void ExpressionResolver::resolve(ast::Program* program) {
 	visit(program);
@@ -41,16 +41,28 @@ void ExpressionResolver::visit(IdentifierExpr* node) {
 	// This is safe for call expressions, as we only resolve identifiers
 	// Wont be though when we implement function overloading
 
-	Symbol* symbol = symbolTable_->resolveSymbol(
-		SymbolKind::IDENTIFIER,
-		node->name,
-		symbolTable_->getNodeScope(node)
-	);
+	Symbol* symbol = nullptr;
+	
+	if (extraSearchScope_) {
+		symbol = symbolTable_->resolveSymbol(
+			SymbolKind::IDENTIFIER,
+			node->name,
+			extraSearchScope_
+		);
+	}
 
 	if (!symbol) {
-		symbolTable_->error(node, std::format("Undefined identifier: '{}'", node->name));
-		setNodeAsError(node);
-		return;
+		symbol = symbolTable_->resolveSymbol(
+			SymbolKind::IDENTIFIER,
+			node->name,
+			symbolTable_->getNodeScope(node)
+		);
+
+		if (!symbol) {
+			symbolTable_->error(node, std::format("Undefined identifier: '{}'", node->name));
+			setNodeAsError(node);
+			return;
+		}
 	}
 
 	symbolTable_->setNodeResolvedSymbol(node, symbol);
@@ -269,21 +281,32 @@ void ExpressionResolver::visit(NamespaceAccessExpr* node) {
 	Symbol* currentSymbol = nullptr;
 
 	for (size_t i = 0; i < node->path.size(); i++) {
+		extraSearchScope_ = currentSymbol;
 		node->path[i]->accept(*this);
 
-		// First segment should resolve to a namespace
+		// First segment should resolve to a namespace or type
 		if (i == 0) {
 			if (auto* ident = dynamic_cast<IdentifierExpr*>(node->path[i].get())) {
+				// Try to resolve as namespace first
 				currentSymbol = symbolTable_->resolveSymbol(
 					SymbolKind::NAMESPACE,
 					ident->name,
 					symbolTable_->getNodeScope(node)
 				);
 
+				// If not a namespace, try to resolve as a type (for static member access)
+				if (!currentSymbol) {
+					currentSymbol = symbolTable_->resolveSymbol(
+						SymbolKind::TYPE,
+						ident->name,
+						symbolTable_->getNodeScope(node)
+					);
+				}
+
 				if (!currentSymbol) {
 					symbolTable_->error(
 						node->path[i].get(),
-						std::format("'{}' is not a namespace", ident->name)
+						std::format("'{}' is not a namespace or type", ident->name)
 					);
 					setNodeAsError(node);
 					return;
@@ -293,8 +316,9 @@ void ExpressionResolver::visit(NamespaceAccessExpr* node) {
 			}
 		}
 		else {
-			// Subsequent segments should resolve to members of the current namespace
-			if (auto* ident = dynamic_cast<IdentifierExpr*>(node->path[i].get())) {
+			// Subsequent segments should resolve to members of the current namespace or type
+			auto* expr = node->path[i].get();
+			if (auto* ident = dynamic_cast<IdentifierExpr*>(expr)) {
 				if (currentSymbol && currentSymbol->kind == SymbolKind::NAMESPACE) {
 					auto* ns = static_cast<NamespaceSymbol*>(currentSymbol);
 					currentSymbol = ns->getMember(ident->name);
@@ -308,20 +332,44 @@ void ExpressionResolver::visit(NamespaceAccessExpr* node) {
 						setNodeAsError(node);
 						return;
 					}
+				}
+				else if (currentSymbol && detail::hasFlag(currentSymbol->kind, SymbolKind::TYPE)) {
+					auto* type = static_cast<TypeSymbol*>(currentSymbol);
+					currentSymbol = type->getMember(ident->name);
 
-					symbolTable_->setNodeResolvedSymbol(ident, currentSymbol);
+					if (!currentSymbol) {
+						symbolTable_->error(
+							node->path[i].get(),
+							std::format("'{}' not found in type '{}'",
+								ident->name, type->qualifiedName)
+						);
+						setNodeAsError(node);
+						return;
+					}
+
+					// TODO: Check if the member is static when this is fully implemented
+					// For now, just accept any member
 				}
 				else {
 					symbolTable_->error(
 						node->path[i - 1].get(),
-						"Left side of '::' must be a namespace"
+						"Left side of '::' must be a namespace or type"
 					);
 					setNodeAsError(node);
 					return;
 				}
+
+				symbolTable_->setNodeResolvedSymbol(ident, currentSymbol);
+			}
+			else if (auto* call = dynamic_cast<CallExpr*>(expr)) {
+				// Current symbol should be the return type of the previous call
+				currentSymbol = symbolTable_->getNodeResolvedSymbol(call);
 			}
 		}
 	}
+
+	// Reset extra search scope
+	extraSearchScope_ = nullptr;
 
 	// Set the final resolved symbol and type for the namespace access expression
 	symbolTable_->setNodeResolvedSymbol(node, currentSymbol);
@@ -471,11 +519,13 @@ void ExpressionResolver::visit(VarDeclStmt* node) {
 		node->typeName->accept(*this);
 	}
 
-	// Visit and validate the nativeInitializerMethod expression
+	node->name->accept(*this);
+
+	// Visit and validate the init expression
 	if (node->initializer) {
 		node->initializer->accept(*this);
 
-		// Check if the nativeInitializerMethod type is assignable to the variable type
+		// Check if the init type is assignable to the variable type
 		auto varSymbol = symbolTable_->resolveSymbol(
 			SymbolKind::VARIABLE,
 			node->name->name,

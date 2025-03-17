@@ -153,6 +153,7 @@
     <ClInclude Include="src\codegen\code_generator.h" />
     <ClInclude Include="src\codegen\function_generator.h" />
     <ClInclude Include="src\codegen\metadata_writer.h" />
+    <ClInclude Include="src\common\declspecs.h" />
     <ClInclude Include="src\core\core.h" />
     <ClInclude Include="src\core\error_reporter.h" />
     <ClInclude Include="src\common\logging.h" />
@@ -178,6 +179,7 @@
   <ItemGroup>
     <None Include="examples\hello.mrk" />
     <None Include="examples\runtime.mrk" />
+    <None Include="examples\web.mrk" />
     <None Include="src\lexer\token_defs.inc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -4,6 +4,7 @@
 #include "symbol_visitor.h"
 #include "expression_resolver.h"
 #include "core/error_reporter.h"
+#include "common/declspecs.h"
 
 #include <iostream>
 #include <format>
@@ -133,7 +134,7 @@ NamespaceSymbol* SymbolTable::declareNamespace(const Str& nsName, NamespaceSymbo
 void SymbolTable::addType(TypeSymbol* type) {
 	types_.push_back(type);
 
-	if (type->declSpec == "INJECT_GLOBAL") {
+	if (type->declSpec == DECLSPEC_INJECT_GLOBAL) {
 		globalType_ = type;
 	}
 }
@@ -145,7 +146,7 @@ void SymbolTable::addVariable(VariableSymbol* variable) {
 void SymbolTable::addFunction(FunctionSymbol* function) {
 	functions_.push_back(function);
 
-	if (function->declSpec == "INJECT_GLOBAL") {
+	if (function->declSpec == DECLSPEC_INJECT_GLOBAL) {
 		globalFunction_ = function;
 	}
 }
@@ -315,7 +316,7 @@ Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolTex
 	// Declare on top because of goto
 	Symbol* symbol = nullptr;
 
-	// Check if symbolText is a qualified name
+		// Check if symbolText is a qualified name
 	auto parts = utils::split(symbolText, "::");
 	if (parts.size() > 1) {
 		// Last part is the actual symbol name

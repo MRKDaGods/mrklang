@@ -77,7 +77,7 @@ void TypeRegistry::initializeMetadata(const MetadataRoot* root) {
 	}
 
 	// Alloc registration
-	registration_ = MakeUnique<RuntimeMetadataRegistration>();
+	registration_ = MakeUnique<RuntimeMetadataRegistration, false>();
 
 	MRK_INFO("Initializing metadata types");
 
@@ -280,7 +280,7 @@ Method* TypeRegistry::registerMethodFromMetadata(const TypeDefinition& typeDef,
 	}
 
 	// Create and add the method
-	Method* method = new Method(methodName, returnType, methodDef.flags, Move(parameters));
+	Method* method = new Method(methodName, returnType, containingType, methodDef.flags, Move(parameters));
 	classType->addMethod(method);
 
 	// Register method

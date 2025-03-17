@@ -32,10 +32,14 @@ void FunctionGenerator::generateFieldInitializer(const VariableSymbol* field, co
 
 	auto* varNode = static_cast<const VarDeclStmt*>(field->declNode);
 	if (!varNode->initializer) {
+		// No initializer, return default
+		cppGen_->write<true>("return ");
+		cppGen_->write(cppGen_->getReferenceTypeName(field->resolver.type), "()");
+		cppGen_->writeLine(';');
 		return;
 	}
 
-	cppGen_->write<true>(cppGen_->getMappedName(enclosingType), "::", cppGen_->getMappedName(field), " = ");
+	cppGen_->write<true>("return ");
 	varNode->initializer->accept(*this);
 	cppGen_->writeLine(';');
 }
@@ -63,6 +67,9 @@ void FunctionGenerator::visit(LiteralExpr* node) {
 	}
 	else if (node->value.type == TokenType::LIT_CHAR) {
 		cppGen_->write('\'', node->value.lexeme, '\'');
+	}
+	else if (node->value.type == TokenType::LIT_NULL) {
+		cppGen_->write("__mrk_null");
 	}
 	else {
 		cppGen_->write(node->value.lexeme);
@@ -184,7 +191,7 @@ void FunctionGenerator::visit(NamespaceAccessExpr* node) {
 	for (int i = 0; i < node->path.size(); i++) {
 		node->path[i]->accept(*this);
 		if (i < node->path.size() - 1) {
-			cppGen_->write("__");
+			cppGen_->write("::");
 		}
 	}
 }

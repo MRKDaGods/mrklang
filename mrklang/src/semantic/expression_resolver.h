@@ -54,6 +54,9 @@ private:
 	SymbolTable* symbolTable_;
 	const SourceFile* currentFile_;
 
+	// For use with qualified expressions
+	Symbol* extraSearchScope_;
+
 	void setNodeAsError(const ExprNode* node);
 	const TypeSymbol* getSymbolType(const Symbol* symbol);
 	bool isErrorNode(const ExprNode* node) const;

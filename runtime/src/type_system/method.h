@@ -13,12 +13,14 @@ using MethodPtr = void*;
 
 class Method {
 public:
-	Method(const Str& name, Type* returnType, MemberFlags flags = {}, Vec<Parameter> parameters = {})
-		: name_(name), returnType_(returnType), parameters_(parameters), nativeMethod_(nullptr) {}
+	Method(const Str& name, Type* returnType, Type* enclosingType, MemberFlags flags = {}, Vec<Parameter> parameters = {})
+		: name_(name), returnType_(returnType), enclosingType_(enclosingType), parameters_(parameters), nativeMethod_(nullptr) {}
 
 	const Str& getName() const { return name_; }
 	Type* getReturnType() const { return returnType_; }
 	bool isStatic() const { return flags_.STATIC; }
+
+	Type* getEnclosingType() const { return enclosingType_; }
 
 	void addParameter(const Str& name, Type* paramType, uint32_t flags = 0) {
 		parameters_.emplace_back(name, paramType, flags);
@@ -37,6 +39,7 @@ public:
 private:
 	Str name_;
 	Type* returnType_;
+	Type* enclosingType_;
 	MemberFlags flags_;
 	Vec<Parameter> parameters_;
 	MethodPtr nativeMethod_;

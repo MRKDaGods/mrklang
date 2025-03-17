@@ -1,13 +1,20 @@
 #include "runtime.h"
-#include "common/logging.h"
 #include "type_system/primitive_type.h"
 #include "type_system/class_type.h"
 #include "type_system/array_type.h"
 #include "type_system/field.h"
 #include "type_system/method.h"
+
 #include <iostream>
+#include <algorithm>
 
 MRK_NS_BEGIN_MODULE(runtime)
+
+extern void registerInternalCalls();
+
+namespace generated {
+	extern void registerMetadata();
+}
 
 using namespace type_system;
 using namespace metadata;
@@ -41,8 +48,12 @@ bool Runtime::initialize(const RuntimeOptions& options) {
 	}
 
 	typeRegistry.dumpTree();
-
 	initialized_ = true;
+
+	MRK_INFO("Runtime initialized, registering metadata...");
+	generated::registerMetadata();
+
+	registerInternalCalls();
 	return true;
 }
 
@@ -57,7 +68,7 @@ void Runtime::shutdown() {
 	initialized_ = false;
 }
 
-bool Runtime::executeMethod(uint32_t methodToken, RuntimeObject* instance, const Vec<RuntimeObject*>& args, RuntimeObject* result) {
+bool Runtime::executeMethod(uint32_t methodToken, void* instance, const Vec<void*>& args, void* result) {
 	if (!initialized_) {
 		MRK_ERROR("Cannot execute method: Runtime not initialized");
 		return false;
@@ -69,99 +80,15 @@ bool Runtime::executeMethod(uint32_t methodToken, RuntimeObject* instance, const
 		return false;
 	}
 
-	// Check native method
-	auto* nativeMethod = method->getNativeMethod();
-	if (!nativeMethod) {
-		MRK_ERROR("Native method not registered for method: {}", method->getName());
-		return false;
-	}
-
-	// Check params
-	auto parameters = method->getParameters();
-	if (args.size() != parameters.size()) {
-		MRK_ERROR("Invalid number of arguments for method: {}", method->getName());
-		return false;
-	}
-
-	Vec<void*> nativeArgs;
-	if (!method->isStatic()) {
-		// Add instance as first argument
-		if (!instance) {
-			MRK_ERROR("Instance not provided for instance method: {}", method->getName());
-			return false;
-		}
-
-		if (instance->isValueType()) {
-			MRK_ERROR("Instance is a value type for instance method: {}", method->getName());
-			return false;
-		}
-
-		// Must be of ref type
-		nativeArgs.push_back(static_cast<ReferenceTypeObject*>(instance)->getData());
-	}
-
-	// Add the method arguments
-	for (size_t i = 0; i < args.size(); ++i) {
-		RuntimeObject* arg = args[i];
-		if (!arg) {
-			MRK_ERROR("Null argument at position {}", i);
-			return false;
-		}
-
-		const auto& param = parameters[i];
-		// TODO: Make sure argument type matches parameter type
-
-		if (arg->isValueType()) {
-			// Extract the value from ValueTypeObject based on the parameter type
-			if (param.getType()->getTypeKind() == TypeKind::BOOL) {
-				bool value = static_cast<ValueTypeObject<bool>*>(arg)->getValue();
-				nativeArgs.push_back(&value);
-			}
-			else if (param.getType()->getTypeKind() == TypeKind::I32) {
-				int32_t value = static_cast<ValueTypeObject<int32_t>*>(arg)->getValue();
-				nativeArgs.push_back(&value);
-			}
-			else {
-				// Handle other primitive types
-				MRK_ERROR("Unsupported value type parameter at position {}", i);
-				return false;
-			}
-		}
-		else {
-			// Reference type - pass the pointer to the object data
-			nativeArgs.push_back(static_cast<ReferenceTypeObject*>(arg)->getData());
-		}
-	}
-
-	// Call the native method
-	try {
-		typedef void (*VoidFunc)(void**, void*);
-		VoidFunc funcPtr = reinterpret_cast<VoidFunc>(nativeMethod);
-
-		void* resultPtr = nullptr;
-		if (result) {
-			if (result->isValueType()) {
-				// For value types, we'll need to handle differently based on type
-				resultPtr = result;
-			}
-			else {
-				// For reference types, we use the object data
-				resultPtr = static_cast<ReferenceTypeObject*>(result)->getData();
-			}
-		}
-
-		// Call the function with arguments and result pointer
-		funcPtr(nativeArgs.data(), resultPtr);
-
-		MRK_INFO("Successfully executed method: {}", method->getName());
+	if (method->getNativeMethod()) {
+		using NativeMethodPtr = void (*)();
+		auto nativeMethod = reinterpret_cast<NativeMethodPtr>(method->getNativeMethod());
+		nativeMethod();
 		return true;
 	}
-	catch (const std::exception& e) {
-		MRK_ERROR("Exception during method execution: {}", e.what());
-		return false;
-	}
 
-	return true;
+	MRK_ERROR("Method not implemented: {}", method->getName());
+	return false;
 }
 
 bool Runtime::runProgram(const Str& assemblyName) {
@@ -193,7 +120,11 @@ bool Runtime::runProgram(const Str& assemblyName) {
 	}
 
 	// Execute the entry point
-	return executeMethod(image.entryPointToken, nullptr, {});
+	return executeMethod(image.entryPointToken, nullptr, Vec<void*>(), nullptr);
+}
+
+void Runtime::registerInternalCall(const Str& signature, InternalCall call) {
+	internalCalls_[signature] = call;
 }
 
 void Runtime::registerNativeMethod(uint32_t methodToken, void* nativeMethod) {
@@ -244,6 +175,12 @@ void Runtime::registerStaticFieldInit(uint32_t fieldToken, void* nativeMethod) {
 	}
 
 	field->setStaticInit(nativeMethod);
+}
+
+Str Runtime::getInternalCallSignature(const Method* method) const {
+	auto typeName = method->getEnclosingType()->getFullName();
+	std::replace(typeName.begin(), typeName.end(), ':', '_');
+	return typeName + "_" + method->getName();
 }
 
 MRK_NS_END

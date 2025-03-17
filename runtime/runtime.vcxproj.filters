@@ -66,6 +66,9 @@
     <ClInclude Include="src\runtime_object.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\icalls.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\metadata\metadata_loader.cpp">
@@ -78,6 +81,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\mrkmain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\runtime_generated.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\icalls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
