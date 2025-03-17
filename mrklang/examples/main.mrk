@@ -1,52 +1,26 @@
-﻿// wtf??
-
-__declspec(NO_MOVE) __cpp {
- // WOW
- #include <iostream>
- std::cout << "Hello, World!" << std::endl;
+﻿__declspec(NO_MOVE) __cpp {
+	#include <iostream>
 }
 
-func print(string msg) {
-	msg += "123";
-}
+var<int> x;
 
+func readNumber() -> int {
+	__declspec(MAPPED) var num = x;
 
-func main() -> void {
-	print("Hello, World!");
-}
-
-var AMMAR = 9999;
-if (AMMAR > 3) {
-	print("AMMAR is greater than 8");
-}
-
-class TestClass {
-	struct TestStruct {
-		var<int> x;
-	}
-
-	static var MRKSTA = "hey bbx";
-
-	var y = 9;
-	var<double> pi = 3.14159;
-	
-	func ctor() {
-		print("Hello, World!");
-
-		if (pi > 3.0) {
-			print("Pi is greater than 3.0");
-		}
-		else {
-			print("Pi is less than or equal to 3.0");
-		}
-	}
-
-	func dtor() {
-		print("Goodbye, World!");
-	}
-
-
-	func test() -> void {
-		print("Hello, World!");
+	__cpp {
+		std::cin >> num;
 	}
 }
+
+func main() {
+	__cpp {
+		std::cout << "hey there, enter number: ";
+	}
+
+	__declspec(MAPPED) var num = readNumber();
+	__cpp {
+		std::cout << "u entered: " << num << std::endl;
+	}
+}
+
+main();

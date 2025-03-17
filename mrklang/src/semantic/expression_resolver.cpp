@@ -57,6 +57,10 @@ void ExpressionResolver::visit(IdentifierExpr* node) {
 }
 
 void ExpressionResolver::visit(TypeReferenceExpr* node) {
+	if (symbolTable_->getNodeResolvedSymbol(node)) {
+		return;
+	}
+
 	// Check that this refers to a valid type
 	TypeSymbol* type = symbolTable_->resolveType(node, symbolTable_->getNodeScope(node));
 	if (!type) {
@@ -463,6 +467,10 @@ void ExpressionResolver::visit(ExprStmt* node) {
 }
 
 void ExpressionResolver::visit(VarDeclStmt* node) {
+	if (node->typeName) {
+		node->typeName->accept(*this);
+	}
+
 	// Visit and validate the nativeInitializerMethod expression
 	if (node->initializer) {
 		node->initializer->accept(*this);
@@ -490,6 +498,13 @@ void ExpressionResolver::visit(VarDeclStmt* node) {
 			if (!varType || 
 				varType == symbolTable_->getTypeSystem()->getBuiltinType(TypeKind::OBJECT)) {
 				varType = initType;
+
+				// Update decl node too
+				// HACK: set empty, but manually resolve
+				node->typeName = MakeUnique<TypeReferenceExpr>(node->startToken);
+
+				// Resolve the type again
+				symbolTable_->setNodeResolvedSymbol(node->typeName.get(), const_cast<TypeSymbol*>(initType));
 			}
 		}
 	}

@@ -46,6 +46,15 @@ struct MemberFlags {
 	#define X(x, y) uint32_t x : 1;
 	ACCESS_MODIFIERS
 	#undef X
+
+	MemberFlags() = default;
+
+	// Implicit conversion from uint32_t
+	MemberFlags(uint32_t flags) {
+		#define X(x, y) x = (flags >> y) & 1;
+		ACCESS_MODIFIERS
+		#undef X
+	}
 };
 
 struct FieldDefinition {

@@ -177,7 +177,12 @@ void SymbolVisitor::visit(VarDeclStmt* node) {
 	// Add to current scope
 	currentScope_->members[varName] = Move(varSymbol);
 
-	// Check nativeInitializerMethod
+	// Visit typename too..
+	if (node->typeName) {
+		node->typeName->accept(*this);
+	}
+
+	// Check initializer
 	if (node->initializer) {
 		node->initializer->accept(*this);
 	}

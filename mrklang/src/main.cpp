@@ -14,9 +14,3 @@ int main() {
 
     return result;
 }
-
-void xyz() {}
-
-void m() {
-    auto zz = (void*)&xyz;
-}

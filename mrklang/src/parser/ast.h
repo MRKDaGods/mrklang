@@ -57,7 +57,7 @@ public:
 	// Visitor interface
 	#define X(type) virtual void visit(type* node) {}
 	AST_NODE_TYPES
-	#undef X
+		#undef X
 };
 
 #undef AST_NODE_TYPES
@@ -135,8 +135,11 @@ struct TypeReferenceExpr : ExprNode { // INT***[][]
 	int pointerRank;
 	int arrayRank;
 
-	TypeReferenceExpr(Token&& start, Vec<UniquePtr<IdentifierExpr>>&& identifiers, Vec<UniquePtr<TypeReferenceExpr>>&& genericArgs, int&& pointerRank, int&& arrayRank)
-		: ExprNode(Move(start)), identifiers(Move(identifiers)), genericArgs(Move(genericArgs)), pointerRank(Move(pointerRank)), arrayRank(Move(arrayRank)) {}
+	// Look at: ExpressionResolver::visit(VarDeclStmt* node)
+	TypeReferenceExpr(Token start) : ExprNode(start) {}
+
+	TypeReferenceExpr(Token start, Vec<UniquePtr<IdentifierExpr>> identifiers, Vec<UniquePtr<TypeReferenceExpr>> genericArgs, int pointerRank, int arrayRank)
+		: ExprNode(Move(start)), identifiers(Move(identifiers)), genericArgs(Move(genericArgs)), pointerRank(pointerRank), arrayRank(arrayRank) {}
 
 	Str getTypeName() const;
 	Str toString() const override;
