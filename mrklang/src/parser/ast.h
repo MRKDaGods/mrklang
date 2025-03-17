@@ -71,9 +71,6 @@ struct Node {
 	/// Set by SymbolVisitor
 	const SourceFile* sourceFile;
 
-	/// Whether this node should be discarded
-	bool discard = false;
-
 	Node(Token&& startToken) : startToken(Move(startToken)), sourceFile(nullptr) {}
 	virtual ~Node() = default;
 	virtual Str toString() const = 0;

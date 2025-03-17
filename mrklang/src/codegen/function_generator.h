@@ -8,14 +8,15 @@ MRK_NS_BEGIN_MODULE(codegen)
 using namespace ast;
 using namespace semantic;
 
-class CppGenerator;
+class CodeGenerator;
 
 /// Generates C++ code from the symbol table
 class FunctionGenerator : public ast::ASTVisitor {
 public:
-	FunctionGenerator(CppGenerator* cppGen, const SymbolTable* symbolTable);
+	FunctionGenerator(CodeGenerator* cppGen, const SymbolTable* symbolTable);
 
 	void generateFunctionBody(const FunctionSymbol* function);
+	void generateFieldInitializer(const VariableSymbol* field, const TypeSymbol* enclosingType);
 
 	void visit(Program* node) override;
 
@@ -53,8 +54,10 @@ public:
 	void visit(TypeDeclStmt* node) override;
 
 private:
-	CppGenerator* cppGen_;
+	CodeGenerator* cppGen_;
 	const SymbolTable* symbolTable_;
+	const FunctionSymbol* currentFunction_;
+	const TypeSymbol* currentFunctionEnclosingType_;
 	bool isGlobalFunction_;
 
 	void generateGlobalFunctionBody(const FunctionSymbol* function);

@@ -1,13 +1,22 @@
-﻿func print(string msg) {
+﻿// wtf??
+
+__declspec(NO_MOVE) __cpp {
+ // WOW
+ #include <iostream>
+ std::cout << "Hello, World!" << std::endl;
+}
+
+func print(string msg) {
 	msg += "123";
 }
+
 
 func main() -> void {
 	print("Hello, World!");
 }
 
 var AMMAR = 9999;
-if (AMMAR > 8) {
+if (AMMAR > 3) {
 	print("AMMAR is greater than 8");
 }
 
@@ -15,6 +24,8 @@ class TestClass {
 	struct TestStruct {
 		var<int> x;
 	}
+
+	static var MRKSTA = "hey bbx";
 
 	var y = 9;
 	var<double> pi = 3.14159;

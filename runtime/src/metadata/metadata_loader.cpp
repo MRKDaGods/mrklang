@@ -55,6 +55,7 @@ bool MetadataLoader::loadFromFile(const Str& filename) {
 bool MetadataLoader::loadFromMemory(const void* data, size_t size) {
 	// Metadata format:
 	// [uint32_t version] <-- METADATA VERSION
+	// [uint32_t magic] <-- MAGIC NUMBER
 	// [uint32_t stringsSize] <-- SIZE OF STRING TABLE
 	// [uint32_t stringsCount] 
 	// [char* strings] 
@@ -79,7 +80,7 @@ bool MetadataLoader::loadFromMemory(const void* data, size_t size) {
 	// [TypeDefinitionHandle* genericParamReferences] <-- GENERIC PARAMETER REFERENCES
 
 	// Validate minimum metadata size
-	if (size < sizeof(uint32_t) * 2) { // At minimum, we need a header with version and size
+	if (size < sizeof(uint32_t) * 3) { // At minimum, we need a header with version, magic and size
 		return false;
 	}
 
@@ -92,11 +93,17 @@ bool MetadataLoader::loadFromMemory(const void* data, size_t size) {
 		return false;
 	}
 
+	// Validate magic
+	uint32_t magic = *reinterpret_cast<const uint32_t*>(bytes + sizeof(uint32_t));
+	if (magic != 0x4D524B4D) { // "MRKM"
+		return false;
+	}
+
 	// Create a new metadata root
 	metadataRoot_ = MakeUnique<MetadataRoot>();
 
 	// Read metadata sections
-	const uint8_t* currentPos = bytes + sizeof(uint32_t);
+	const uint8_t* currentPos = bytes + sizeof(uint32_t) * 2;
 
 	// Read string table
 	uint32_t stringsSize = *reinterpret_cast<const uint32_t*>(currentPos);

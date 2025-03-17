@@ -16,6 +16,7 @@ public:
 
 	Str getName() const override { return name_; }
 	Str getFullName() const override { return namespaceName_.empty() ? name_ : namespaceName_ + "::" + name_; }
+	Str getNamespaceName() const { return namespaceName_; }
 	TypeKind getTypeKind() const override { return isValueType_ ? TypeKind::VALUE_TYPE : TypeKind::CLASS; }
 	size_t getSize() const override { return size_; }
 	bool isValueType() const override { return isValueType_; }

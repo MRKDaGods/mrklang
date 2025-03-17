@@ -6,6 +6,8 @@
 #include "symbols.h"
 #include "type_system.h"
 
+#include <unordered_set>
+
 MRK_NS_BEGIN_MODULE(semantic)
 
 struct ImportEntry {
@@ -43,6 +45,7 @@ public:
 	void addVariable(VariableSymbol* variable);
 	void addFunction(FunctionSymbol* function);
 	void addImport(const SourceFile* file, ImportEntry&& entry);
+	void addRigidLanguageBlock(ast::LangBlockStmt* block);
 	void error(const ASTNode* node, const Str& message);
 
 	/// Find the first non-implicit parent of a symbol
@@ -72,11 +75,12 @@ public:
 	Symbol* resolveSymbol(SymbolKind kind, const Str& symbolText, const Symbol* scope, SymbolResolveFlags flags = SymbolResolveFlags::ALL);
 
 	const Vec<UniquePtr<ast::Program>>& getPrograms() const { return programs_; }
-	Vec<TypeSymbol*> getTypes() const { return types_; }
-	Vec<VariableSymbol*> getVariables() const { return variables_; }
-	Vec<FunctionSymbol*> getFunctions() const { return functions_; }
+	const Vec<TypeSymbol*>& getTypes() const { return types_; }
+	const Vec<VariableSymbol*>& getVariables() const { return variables_; }
+	const Vec<FunctionSymbol*>& getFunctions() const { return functions_; }
 	TypeSymbol* getGlobalType() const { return globalType_; }
 	FunctionSymbol* getGlobalFunction() const { return globalFunction_; }
+	const std::unordered_set<ast::LangBlockStmt*>& getRigidLanguageBlocks() const { return rigidLanguageBlocks_; }
 
 private:
 	Vec<UniquePtr<ast::Program>> programs_;
@@ -89,6 +93,10 @@ private:
 	UniquePtr<TypeSystem> typeSystem_;
 	TypeSymbol* globalType_;
 	FunctionSymbol* globalFunction_;
+
+	/// Rigid language blocks are marked by __declspec(NO_MOVE)
+	/// These blocks are not allowed to be moved
+	std::unordered_set<ast::LangBlockStmt*> rigidLanguageBlocks_;
 
 	/// Keep track of the scope for each AST node
 	Dict<const ASTNode*, const Symbol*> nodeScopes_;

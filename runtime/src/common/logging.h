@@ -13,11 +13,11 @@
 MRK_NS_BEGIN
 
 enum class LogLevel {
-	DEBUG,
-	INFO,
-	WARN,
-	ERROR,
-	FATAL
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+    FATAL
 };
 
 // Unbuffered logging

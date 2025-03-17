@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/macros.h"
+#include "common/types.h"
 
 #include <cstdint>
 
@@ -24,10 +24,35 @@ struct StringTable {
 	}
 };
 
+struct MemberFlags {
+	#define ACCESS_MODIFIERS \
+	X(PUBLIC, 0) \
+	X(PROTECTED, 1) \
+	X(PRIVATE, 2) \
+	X(INTERNAL, 3) \
+	X(STATIC, 4) \
+	X(ABSTRACT, 5) \
+	X(SEALED, 6) \
+	X(VIRTUAL, 7) \
+	X(OVERRIDE, 8) \
+	X(CONST, 9) \
+	X(READONLY, 10) \
+	X(EXTERN, 11) \
+	X(IMPLICIT, 12) \
+	X(EXPLICIT, 13) \
+	X(NEW, 14) \
+	X(ASYNC, 15)
+
+	#define X(x, y) uint32_t x : 1;
+	ACCESS_MODIFIERS
+	#undef X
+};
+
 struct FieldDefinition {
 	StringHandle name;
 	TypeDefinitionHandle typeHandle;
-	uint32_t flags;
+	MemberFlags flags;
+	uint32_t token;
 };
 
 struct ParameterDefinition {
@@ -41,7 +66,7 @@ struct MethodDefinition {
 	TypeDefinitionHandle returnTypeHandle;
 	uint32_t parameterStart; // Index into the parameter table
 	uint32_t parameterCount;
-	uint32_t flags; // Method flags
+	MemberFlags flags; // Method flags
 	uint32_t implFlags; // Method implementation flags
 	uint32_t token; // Method token
 };
@@ -136,5 +161,25 @@ struct MetadataRoot {
 	TypeDefinitionHandle* genericParamReferences;
 	uint32_t genericParamReferenceCount;
 };
+
+template<typename TypeT, typename FieldT, typename MethodT>
+struct MetadataRegistrationBase {
+	Dict<TypeT*, uint32_t> typeTokenMap;
+	Dict<FieldT*, uint32_t> fieldTokenMap;
+	Dict<MethodT*, uint32_t> methodTokenMap;
+
+	MetadataRegistrationBase() = default;
+};
+
+template<typename TypeT, typename FieldT, typename MethodT, bool ReverseLookup = false>
+struct MetadataRegistration : MetadataRegistrationBase<TypeT, FieldT, MethodT> {};
+
+template<typename TypeT, typename FieldT, typename MethodT>
+struct MetadataRegistration<TypeT, FieldT, MethodT, true> : MetadataRegistrationBase<TypeT, FieldT, MethodT> {
+	Dict<uint32_t, TypeT*> typeTokenReverseMap;
+	Dict<uint32_t, FieldT*> fieldTokenReverseMap;
+	Dict<uint32_t, MethodT*> methodTokenReverseMap;
+};
+
 
 MRK_NS_END

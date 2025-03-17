@@ -3,6 +3,7 @@
 #include "common/types.h"
 #include "semantic/symbol_table.h"
 #include "common/utils.h"
+#include "metadata_writer.h"
 
 #include <sstream>
 
@@ -10,9 +11,15 @@ MRK_NS_BEGIN_MODULE(codegen)
 
 using namespace semantic;
 
-class CppGenerator {
+struct StaticFieldInfo {
+	const VariableSymbol* variable;
+	const TypeSymbol* enclosingType;
+	Str nativeInitializerMethod;
+};
+
+class CodeGenerator {
 public:
-	CppGenerator(const SymbolTable* symbolTable);
+	CodeGenerator(const SymbolTable* symbolTable, const CompilerMetadataRegistration* metadataRegistration);
 
 	Str generateRuntimeCode();
 	Str getReferenceTypeName(const TypeSymbol* type) const;
@@ -60,11 +67,17 @@ private:
 	std::stringstream code_;
 	int indentLevel_ = 0;
 	Dict<const Symbol*, Str> nameMap_;
+	const CompilerMetadataRegistration* metadataRegistration_;
+
+	// Static Fields, and their enclosing types
+	Vec<StaticFieldInfo> staticFields_;
 
 	Str translateTypeName(const Str& typeName) const;
 	void generateType(const TypeSymbol* type);
 	void generateFunction(const FunctionSymbol* function);
-	void generateVariable(const VariableSymbol* variable);
+	void generateVariable(const VariableSymbol* variable, const TypeSymbol* enclosingType);
+	void generateStaticFieldInitializers();
+	void generateMetadataRegistration();
 };
 
 MRK_NS_END

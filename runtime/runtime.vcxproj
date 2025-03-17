@@ -108,6 +108,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -131,22 +132,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\common\logging.h" />
     <ClInclude Include="src\common\macros.h" />
     <ClInclude Include="src\common\types.h" />
     <ClInclude Include="src\metadata\metadata_loader.h" />
     <ClInclude Include="src\metadata\metadata_structures.h" />
     <ClInclude Include="src\runtime-api\mrk-metadata.h" />
     <ClInclude Include="src\runtime.h" />
+    <ClInclude Include="src\runtime_defines.h" />
+    <ClInclude Include="src\runtime_object.h" />
     <ClInclude Include="src\type_system\array_type.h" />
     <ClInclude Include="src\type_system\class_type.h" />
     <ClInclude Include="src\type_system\field.h" />
     <ClInclude Include="src\type_system\method.h" />
+    <ClInclude Include="src\type_system\parameter.h" />
     <ClInclude Include="src\type_system\primitive_type.h" />
     <ClInclude Include="src\type_system\type.h" />
     <ClInclude Include="src\type_system\type_registry.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\metadata\metadata_loader.cpp" />
+    <ClCompile Include="src\mrkmain.cpp" />
     <ClCompile Include="src\runtime.cpp" />
     <ClCompile Include="src\type_system\type_registry.cpp" />
   </ItemGroup>

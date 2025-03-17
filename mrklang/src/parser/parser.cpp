@@ -16,6 +16,9 @@ UniquePtr<Program> Parser::parseProgram(const SourceFile* sourceFile) {
 	auto program = MakeUnique<Program>();
 	program->sourceFile = sourceFile;
 
+	// https://stackoverflow.com/questions/61809337/orphan-range-crash-when-using-static-vector
+	program->statements = Vec<UniquePtr<StmtNode>>();
+
 	while (!match(TokenType::END_OF_FILE)) {
 		try {
 			// try parse top level declaration
@@ -127,6 +130,9 @@ UniquePtr<LangBlockStmt> Parser::parseLangBlock() {
 	consume(TokenType::LIT_LANG_BLOCK, "Invalid language block");
 
 	auto rawCode = previous_.lexeme;
+	// Remove the curly braces
+	rawCode = rawCode.substr(1, rawCode.size() - 2);
+
 	return MakeUnique<LangBlockStmt>(Move(startToken), Move(language), Move(rawCode));
 }
 
@@ -149,7 +155,7 @@ UniquePtr<VarDeclStmt> Parser::parseVarDecl(bool requireSemicolon) {
 		consume(TokenType::IDENTIFIER, "Expected variable name")
 	);
 
-	// Consume initializer if exists
+	// Consume nativeInitializerMethod if exists
 	UniquePtr<ExprNode> initializer = nullptr;
 	if (match(TokenType::OP_EQ)) {
 		initializer = parseExpression();

@@ -154,6 +154,7 @@ void SymbolVisitor::visit(VarDeclStmt* node) {
 	if (isGlobal) {
 		// Push global type scope
 		pushScope(symbolTable_->getGlobalType());
+		currentModifiers_ |= AccessModifier::STATIC;
 	}
 
 	auto typeName = node->typeName ? node->typeName->getTypeName() : "object";
@@ -176,7 +177,7 @@ void SymbolVisitor::visit(VarDeclStmt* node) {
 	// Add to current scope
 	currentScope_->members[varName] = Move(varSymbol);
 
-	// Check initializer
+	// Check nativeInitializerMethod
 	if (node->initializer) {
 		node->initializer->accept(*this);
 	}
@@ -258,6 +259,7 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 	if (isGlobal) {
 		// Push global type scope
 		pushScope(symbolTable_->getGlobalType());
+		currentModifiers_ |= AccessModifier::STATIC;
 	}
 
 	// 15/3/2025
@@ -376,7 +378,13 @@ void SymbolVisitor::visit(WhileStmt* node) {
 void SymbolVisitor::visit(LangBlockStmt* node) {
 	preprocessNode(node);
 
-	// Untracked
+	// Check if it's a rigid block
+	if (currentDeclSpec_ == "NO_MOVE") {
+		symbolTable_->addRigidLanguageBlock(node);
+	}
+
+	// Reset modifiers
+	resetModifiers();
 }
 
 void SymbolVisitor::visit(AccessModifierStmt* node) {

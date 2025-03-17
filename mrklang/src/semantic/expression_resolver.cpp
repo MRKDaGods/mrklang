@@ -463,11 +463,11 @@ void ExpressionResolver::visit(ExprStmt* node) {
 }
 
 void ExpressionResolver::visit(VarDeclStmt* node) {
-	// Visit and validate the initializer expression
+	// Visit and validate the nativeInitializerMethod expression
 	if (node->initializer) {
 		node->initializer->accept(*this);
 
-		// Check if the initializer type is assignable to the variable type
+		// Check if the nativeInitializerMethod type is assignable to the variable type
 		auto varSymbol = symbolTable_->resolveSymbol(
 			SymbolKind::VARIABLE,
 			node->name->name,

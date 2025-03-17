@@ -1,10 +1,17 @@
 #pragma once
 
 #include "common/types.h"
+#include "metadata/metadata_structures.h"
 
 MRK_NS_BEGIN_MODULE(runtime::type_system)
 
+using namespace runtime::metadata;
+
 class Type;
+class Field;
+class Method;
+
+using RuntimeMetadataRegistration = MetadataRegistration<Type, Field, Method, true>;
 
 // Registry for all types in the system
 class TypeRegistry {
@@ -18,7 +25,18 @@ public:
 	Type* createArrayType(Type* elementType, uint32_t rank);
     Type* findType(const Str& fullName) const;
 
+	void initializeMetadata(const MetadataRoot* root);
+
+	// Metadata methods
+    Type* registerTypeFromMetadata(const TypeDefinition& typeDef);
+    Field* registerFieldFromMetadata(const TypeDefinition& typeDef,
+        const FieldDefinition& fieldDef);
+    Method* registerMethodFromMetadata(const TypeDefinition& typeDef,
+        const MethodDefinition& methodDef);
+
     void initializeBuiltinTypes();
+	void dumpTree() const;
+    void dumpType(Type* type, int indent) const;
 
     // Common primitive types
     Type* getVoidType() { return voidType_; }
@@ -33,8 +51,14 @@ public:
     Type* getStringType() { return stringType_; }
     Type* getObjectType() { return objectType_; }
 
+    // External
+    Type* getTypeByToken(uint32_t token) const;
+	Field* getFieldByToken(uint32_t token) const;
+	Method* getMethodByToken(uint32_t token) const;
+
 private:
     Dict<Str, Type*> types_;
+	UniquePtr<RuntimeMetadataRegistration> registration_;
 
     // Cached built-in types
     Type* voidType_;

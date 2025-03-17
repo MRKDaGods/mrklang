@@ -42,7 +42,7 @@
     <ClCompile Include="src\core\error_reporter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\codegen\cpp_generator.cpp">
+    <ClCompile Include="src\codegen\code_generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\core\core.cpp">
@@ -55,6 +55,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\codegen\function_generator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\codegen\metadata_writer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -110,7 +113,7 @@
     <ClInclude Include="src\core\profiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\codegen\cpp_generator.h">
+    <ClInclude Include="src\codegen\code_generator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\core\core.h">
@@ -126,6 +129,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\codegen\function_generator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\codegen\metadata_writer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

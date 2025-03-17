@@ -154,6 +154,10 @@ void SymbolTable::addImport(const SourceFile* file, ImportEntry&& entry) {
 	imports_[file].push_back(Move(entry));
 }
 
+void SymbolTable::addRigidLanguageBlock(LangBlockStmt* block) {
+	rigidLanguageBlocks_.insert(block);
+}
+
 void SymbolTable::error(const ASTNode* node, const Str& message) {
 	// Doubt if we should throw here
 	// Just report for now

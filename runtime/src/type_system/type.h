@@ -5,6 +5,7 @@
 MRK_NS_BEGIN_MODULE(runtime::type_system)
 
 #define MRK_STL_NAME "mrkstl"
+#define MRK_GLOBAL_NAME "__global"
 
 enum class TypeKind {
     VOID,

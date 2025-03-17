@@ -1,12 +1,16 @@
 #include "function_generator.h"
-#include "cpp_generator.h"
+#include "code_generator.h"
 
 MRK_NS_BEGIN_MODULE(codegen)
 
-FunctionGenerator::FunctionGenerator(CppGenerator* cppGen, const SymbolTable* symbolTable)
-	: cppGen_(cppGen), symbolTable_(symbolTable), isGlobalFunction_(false) {}
+FunctionGenerator::FunctionGenerator(CodeGenerator* cppGen, const SymbolTable* symbolTable)
+	: cppGen_(cppGen), symbolTable_(symbolTable), isGlobalFunction_(false),
+	currentFunction_(nullptr), currentFunctionEnclosingType_(nullptr) {}
 
 void FunctionGenerator::generateFunctionBody(const FunctionSymbol* function) {
+	currentFunction_ = function;
+	currentFunctionEnclosingType_ = static_cast<const TypeSymbol*>(symbolTable_->findAncestorOfKind(function, SymbolKind::TYPE));
+
 	if (function == symbolTable_->getGlobalFunction()) {
 		generateGlobalFunctionBody(function);
 		return;
@@ -19,6 +23,21 @@ void FunctionGenerator::generateFunctionBody(const FunctionSymbol* function) {
 		cppGen_->write<true>("");
 		stmt->accept(*this);
 	}
+}
+
+void FunctionGenerator::generateFieldInitializer(const VariableSymbol* field, const TypeSymbol* enclosingType) {
+	if (!field || !enclosingType) {
+		return;
+	}
+
+	auto* varNode = static_cast<const VarDeclStmt*>(field->declNode);
+	if (!varNode->initializer) {
+		return;
+	}
+
+	cppGen_->write<true>(cppGen_->getMappedName(enclosingType), "::", cppGen_->getMappedName(field), " = ");
+	varNode->initializer->accept(*this);
+	cppGen_->writeLine(';');
 }
 
 void FunctionGenerator::generateGlobalFunctionBody(const FunctionSymbol* function) {
@@ -60,9 +79,28 @@ void FunctionGenerator::visit(InteropCallExpr* node) {
 }
 
 void FunctionGenerator::visit(IdentifierExpr* node) {
-	// Maybe mapped
-	if (auto sym = symbolTable_->getNodeResolvedSymbol(node)) {
+	auto sym = symbolTable_->getNodeResolvedSymbol(node);
+	if (sym) {
+		// Check if it's a member
+		bool isMember = currentFunctionEnclosingType_ == symbolTable_->findAncestorOfKind(sym, SymbolKind::TYPE)
+			&& currentFunctionEnclosingType_->getMember(sym->name);
+		if (isMember) {
+			// Static or instance?
+			if (detail::isSTATIC(sym->accessModifier)) {
+				cppGen_->write("MRK_STATIC_MEMBER(", cppGen_->getMappedName(currentFunctionEnclosingType_), ", ");
+			}
+			else {
+				cppGen_->write("MRK_INSTANCE_MEMBER(");
+			}
+		}
+
+		// Write the identifier
 		cppGen_->write(cppGen_->getMappedName(sym));
+
+		if (isMember) {
+			cppGen_->write(')');
+		}
+
 		return;
 	}
 
@@ -101,7 +139,7 @@ void FunctionGenerator::visit(CallExpr* node) {
 void FunctionGenerator::visit(BinaryExpr* node) {
 	// Write the left side
 	node->left->accept(*this);
-	
+
 	// Write the operator
 	cppGen_->write(' ', node->op.lexeme, ' ');
 
@@ -204,7 +242,7 @@ void FunctionGenerator::visit(VarDeclStmt* node) {
 	cppGen_->write(' ');
 	node->name->accept(*this);
 
-	// Write the initializer
+	// Write the nativeInitializerMethod
 	if (node->initializer) {
 		cppGen_->write(" = ");
 		node->initializer->accept(*this);
@@ -258,7 +296,7 @@ void FunctionGenerator::visit(IfStmt* node) {
 }
 
 void FunctionGenerator::visit(ForStmt* node) {
-	// Write the initializer
+	// Write the nativeInitializerMethod
 	if (node->init) {
 		node->init->accept(*this);
 	}
@@ -305,7 +343,13 @@ void FunctionGenerator::visit(WhileStmt* node) {
 }
 
 void FunctionGenerator::visit(LangBlockStmt* node) {
-	// None FOR NOW
+	// For now, keep cpp blocks as is
+	if (node->language == "__cpp") {
+		const auto& blocks = symbolTable_->getRigidLanguageBlocks();
+		if (blocks.find(node) == blocks.end()) { // Not a rigid block
+			cppGen_->writeLine(node->rawCode);
+		}
+	}
 }
 
 void FunctionGenerator::visit(AccessModifierStmt* node) {

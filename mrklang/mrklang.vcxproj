@@ -133,8 +133,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\codegen\cpp_generator.cpp" />
+    <ClCompile Include="src\codegen\code_generator.cpp" />
     <ClCompile Include="src\codegen\function_generator.cpp" />
+    <ClCompile Include="src\codegen\metadata_writer.cpp" />
     <ClCompile Include="src\core\core.cpp" />
     <ClCompile Include="src\core\error_reporter.cpp" />
     <ClCompile Include="src\lexer\lexer_position_tree.cpp" />
@@ -149,8 +150,9 @@
     <ClCompile Include="src\semantic\type_system.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\codegen\cpp_generator.h" />
+    <ClInclude Include="src\codegen\code_generator.h" />
     <ClInclude Include="src\codegen\function_generator.h" />
+    <ClInclude Include="src\codegen\metadata_writer.h" />
     <ClInclude Include="src\core\core.h" />
     <ClInclude Include="src\core\error_reporter.h" />
     <ClInclude Include="src\common\logging.h" />

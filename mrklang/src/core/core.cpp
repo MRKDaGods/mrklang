@@ -5,7 +5,8 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/symbol_table.h"
-#include "codegen/cpp_generator.h"
+#include "codegen/code_generator.h"
+#include "codegen/metadata_writer.h"
 
 #include <fstream>
 
@@ -70,9 +71,18 @@ int Core::build() {
 		return 1;
 	}
 
+	// Metadata
+	MRK_INFO("Generating metadata...");
+	MetadataWriter metadataWriter(&symbolTable_);
+	auto registration = metadataWriter.writeMetadataFile("runtime_metadata.mrkmeta");
+	if (!registration) {
+		MRK_ERROR("Failed to generate metadata");
+		return 1;
+	}
+
 	// Codegen...
 	MRK_INFO("Generating code...");
-	CppGenerator generator(&symbolTable_);
+	CodeGenerator generator(&symbolTable_, registration.get());
 	auto code = generator.generateRuntimeCode();
 
 	MRK_INFO("Generated code:\n{}", code);

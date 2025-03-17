@@ -11,7 +11,7 @@ public:
 		: kind_(kind), name_(name), size_(size) {}
 
 	Str getName() const override { return name_; }
-	Str getFullName() const override { return MRK_STL_NAME "::" + name_; }
+	Str getFullName() const override { return MRK_GLOBAL_NAME "::" + name_; }
 	TypeKind getTypeKind() const override { return kind_; }
 	size_t getSize() const override { return size_; }
 	bool isValueType() const override { return true; }

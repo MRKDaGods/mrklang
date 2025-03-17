@@ -2,8 +2,11 @@
 
 #include "metadata/metadata_loader.h"
 #include "type_system/type_registry.h"
+#include "runtime_object.h"
 
 MRK_NS_BEGIN_MODULE(runtime)
+
+using namespace runtime::type_system;
 
 struct RuntimeOptions {
 	// Path to the metadata file
@@ -32,20 +35,29 @@ public:
     bool isInitialized() const { return initialized_; }
 
     /// Execute a method by its metadata token
-    bool executeMethod(uint32_t methodToken, void* result = nullptr);
+    bool executeMethod(uint32_t methodToken, RuntimeObject* instance, const Vec<RuntimeObject*>& args, RuntimeObject* result = nullptr);
 
     /// Run a program starting from its entry point
     bool runProgram(const Str& assemblyName);
 
+	
+	// Runtime externals
+	// Method
+	void registerNativeMethod(uint32_t methodToken, void* nativeMethod);
+	
+	// Field
+	void registerStaticField(uint32_t fieldToken, void* nativeField, void* staticInit);
+	void registerNativeField(uint32_t fieldToken, void* nativeField);
+	void registerStaticFieldInit(uint32_t fieldToken, void* nativeMethod);
+
 private:
+	bool initialized_ = false;
+	RuntimeOptions options_;
+
     Runtime() = default;
     ~Runtime() = default;
 
-    /// Convert metadata types to runtime types
-    bool buildRuntimeTypes();
-
-    bool initialized_ = false;
-    RuntimeOptions options_;
+	TypeRegistry& getTypeRegistry() { return TypeRegistry::instance(); }
 };
 
 MRK_NS_END
