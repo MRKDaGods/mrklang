@@ -161,6 +161,8 @@ Type* TypeRegistry::registerTypeFromMetadata(const TypeDefinition& typeDef) {
 	}
 	else {
 		// Create an interface type as fallback
+		// Prims go here for now
+
 		#pragma warning(suppress: 6387)
 		newType = new ClassType(typeName, namespaceName, false, TypeAttributes::INTERFACE, typeDef.size);
 	}
@@ -171,6 +173,11 @@ Type* TypeRegistry::registerTypeFromMetadata(const TypeDefinition& typeDef) {
 
 	registration_->typeTokenMap[newType] = typeDef.token;
 	registration_->typeTokenReverseMap[typeDef.token] = newType;
+
+	// Check if it's a primitive
+	if (typeDef.flags.isPrimitive) {
+		regsterPrimitiveType(newType);
+	}
 
 	return newType;
 }
@@ -291,7 +298,9 @@ Method* TypeRegistry::registerMethodFromMetadata(const TypeDefinition& typeDef,
 }
 
 void TypeRegistry::initializeBuiltinTypes() {
-	voidType_ = new PrimitiveType(TypeKind::VOID, "void", 0);
+	// Consume from metadata instead
+
+	/*voidType_ = new PrimitiveType(TypeKind::VOID, "void", 0);
 	registerType(voidType_);
 
 	boolType_ = new PrimitiveType(TypeKind::BOOL, "bool", 1);
@@ -322,7 +331,7 @@ void TypeRegistry::initializeBuiltinTypes() {
 	registerType(stringType_);
 
 	objectType_ = new ClassType("object", MRK_STL_NAME, false, TypeAttributes::PUBLIC, sizeof(void*));
-	registerType(objectType_);
+	registerType(objectType_);*/
 }
 
 void TypeRegistry::dumpTree() const {
@@ -442,6 +451,57 @@ Field* TypeRegistry::getFieldByToken(uint32_t token) const {
 Method* TypeRegistry::getMethodByToken(uint32_t token) const {
 	auto it = registration_->methodTokenReverseMap.find(token);
 	return it != registration_->methodTokenReverseMap.end() ? it->second : nullptr;
+}
+
+Field* TypeRegistry::getField(FieldDefinition* fieldDef) {
+	return getFieldByToken(fieldDef->token);
+}
+
+void TypeRegistry::regsterPrimitiveType(Type* type) {
+	auto name = type->getName();
+
+	if (name == "void") {
+		voidType_ = type;
+	}
+	else if (name == "bool") {
+		boolType_ = type;
+	}
+	else if (name == "char") {
+		charType_ = type;
+	}
+	else if (name == "byte") {
+		byteType_ = type;
+	}
+	else if (name == "short") {
+		int16Type_ = type;
+	}
+	else if (name == "ushort") {
+		uint16Type_ = type;
+	}
+	else if (name == "int32") {
+		int32Type_ = type;
+	}
+	else if (name == "uint") {
+		uint32Type_ = type;
+	}
+	else if (name == "int64") {
+		int64Type_ = type;
+	}
+	else if (name == "ulong") {
+		uint64Type_ = type;
+	}
+	else if (name == "float") {
+		floatType_ = type;
+	}
+	else if (name == "double") {
+		doubleType_ = type;
+	}
+	else if (name == "string") {
+		stringType_ = type;
+	}
+	else if (name == "object") {
+		objectType_ = type;
+	}
 }
 
 MRK_NS_END

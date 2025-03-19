@@ -11,3 +11,6 @@
 
 // Internal call
 #define DECLSPEC_NATIVE "NATIVE"
+
+// Generic argument placeholder
+#define DECLSPEC_TEMPLATE "TEMPLATE"

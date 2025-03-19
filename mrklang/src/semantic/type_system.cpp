@@ -132,6 +132,10 @@ bool TypeSystem::isAssignable(const TypeSymbol* target, const TypeSymbol* source
 		return true;
 	}
 
+	if (target->isGenericParameter || source->isGenericParameter) {
+		return true;
+	}
+
 	// Error type is assignable to anything for error recovery
 	if (source == errorType_) {
 		return true;
@@ -150,6 +154,12 @@ bool TypeSystem::isAssignable(const TypeSymbol* target, const TypeSymbol* source
 
 	// Check inheritance - if source is derived from target
 	if (isDerivedFrom(source, target)) {
+		return true;
+	}
+
+	// if any is ptr, ignore
+	TypeKind kind;
+	if ((isPrimitiveType(target, &kind) && kind == TypeKind::PTR)) {
 		return true;
 	}
 

@@ -100,6 +100,14 @@ void FunctionGenerator::visit(IdentifierExpr* node) {
 				cppGen_->write("MRK_INSTANCE_MEMBER(");
 			}
 		}
+		else {
+			// Not a member of the current function's enclosing type
+			// Check if its a static function, if so qualify by its enclosing type
+			if (detail::hasFlag(sym->kind, SymbolKind::FUNCTION) && detail::isSTATIC(sym->accessModifier)) {
+				auto proxyEnclosingType = static_cast<TypeSymbol*>(symbolTable_->findAncestorOfKind(sym, SymbolKind::TYPE));
+				cppGen_->write(cppGen_->getMappedName(proxyEnclosingType), "::");
+			}
+		}
 
 		// Write the identifier
 		cppGen_->write(cppGen_->getMappedName(sym));
@@ -122,12 +130,24 @@ void FunctionGenerator::visit(TypeReferenceExpr* node) {
 		return;
 	}
 
-	cppGen_->write(cppGen_->getMappedName(static_cast<TypeSymbol*>(sym)), ' ');
+	cppGen_->write(cppGen_->getReferenceTypeName(static_cast<TypeSymbol*>(sym)), ' ');
 }
 
 void FunctionGenerator::visit(CallExpr* node) {
 	// Write the target
 	node->target->accept(*this);
+
+	// Check if it has generic arguments
+	if (!node->genericArgs.empty()) {
+		cppGen_->write('<');
+		for (int i = 0; i < node->genericArgs.size(); i++) {
+			node->genericArgs[i]->accept(*this);
+			if (i < node->genericArgs.size() - 1) {
+				cppGen_->write(", ");
+			}
+		}
+		cppGen_->write('>');
+	}
 
 	cppGen_->write('(');
 

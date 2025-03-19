@@ -56,25 +56,33 @@ public:
 	Field* getFieldByToken(uint32_t token) const;
 	Method* getMethodByToken(uint32_t token) const;
 
+    // API
+    Field* getField(FieldDefinition* fieldDef);
+
 private:
     Dict<Str, Type*> types_;
 	UniquePtr<RuntimeMetadataRegistration> registration_;
 
     // Cached built-in types
-    Type* voidType_;
-    Type* boolType_;
-    Type* charType_;
-    Type* byteType_;
-    Type* int16Type_;
-    Type* int32Type_;
-    Type* int64Type_;
-    Type* floatType_;
-    Type* doubleType_;
-    Type* stringType_;
-    Type* objectType_;
+    Type* voidType_ = nullptr;
+    Type* boolType_ = nullptr;
+    Type* charType_ = nullptr;
+    Type* byteType_ = nullptr;
+    Type* int16Type_ = nullptr;
+	Type* uint16Type_ = nullptr;
+    Type* int32Type_ = nullptr;
+	Type* uint32Type_ = nullptr;
+    Type* int64Type_ = nullptr;
+	Type* uint64Type_ = nullptr;
+    Type* floatType_ = nullptr;
+    Type* doubleType_ = nullptr;
+    Type* stringType_ = nullptr;
+    Type* objectType_ = nullptr;
 
     TypeRegistry() = default;
     ~TypeRegistry();
+
+    void regsterPrimitiveType(Type* type);
 };
 
 MRK_NS_END

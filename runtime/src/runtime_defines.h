@@ -2,8 +2,19 @@
 
 #include <cstdint>
 #include <string>
+#include <iostream>
 
 typedef void (*NativeMethodPtr)(void**, void*);
+
+template<typename T>
+constexpr size_t MRK_SIZE_OF() {
+	if constexpr (std::is_void_v<T>) {
+		return 0;
+	}
+	else {
+		return sizeof(T);
+	}
+}
 
 // Macros for method registration and execution
 #define MRK_RUNTIME_REGISTER_CODE(token, method) \
@@ -12,7 +23,9 @@ typedef void (*NativeMethodPtr)(void**, void*);
 #define MRK_RUNTIME_REGISTER_STATIC_FIELD(token, field, init) \
     Runtime::instance().registerStaticField(token, reinterpret_cast<void*>(&field), reinterpret_cast<void*>(init))
 
-#define MRK_RUNTIME_REGISTER_TYPE(token, type)
+#define MRK_RUNTIME_REGISTER_FIELD(token, offset) Runtime::instance().registerField(token, offset)
+
+#define MRK_RUNTIME_REGISTER_TYPE(token, type) Runtime::instance().registerType(token, MRK_SIZE_OF<type>())
 
 // Helper macros for method calls
 #define MRK_CALL_METHOD(methodToken, instance, args, result) \

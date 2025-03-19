@@ -308,7 +308,10 @@ Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolTex
 
 	// If scope is global nms, check in our globalType too if the target is a function/var
 	if (requestor != globalNamespace_ && scope == globalNamespace_ && detail::hasFlag(kind, SymbolKind::FUNCTION | SymbolKind::VARIABLE)) {
-		return resolveSymbolInternal(kind, symbolText, globalType_, globalNamespace_);
+		auto sym = resolveSymbolInternal(kind, symbolText, globalType_, globalNamespace_);
+		if (sym) {
+			return sym;
+		}
 	}
 
 	// MRK_INFO("Resolving symbol '{}' in scope '{}'", symbolText, scope->toString());
@@ -316,7 +319,7 @@ Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolTex
 	// Declare on top because of goto
 	Symbol* symbol = nullptr;
 
-		// Check if symbolText is a qualified name
+	// Check if symbolText is a qualified name
 	auto parts = utils::split(symbolText, "::");
 	if (parts.size() > 1) {
 		// Last part is the actual symbol name
@@ -339,7 +342,6 @@ Symbol* SymbolTable::resolveSymbolInternal(SymbolKind kind, const Str& symbolTex
 		return resolveSymbolInternal(kind, realSymbolName, current, requestor);
 	}
 
-	// Unqualified name
 	symbol = scope->getMember(symbolText);
 	if (symbol && detail::hasFlag(symbol->kind, kind)) {
 		return symbol;
@@ -382,7 +384,7 @@ void SymbolTable::resolve() {
 	// Resolve functions
 	for (auto function : functions_) {
 		// Resolve return type
-		auto returnTypeSymbol = resolveSymbol(SymbolKind::TYPE, function->returnType, function->parent);
+		auto returnTypeSymbol = resolveSymbol(SymbolKind::TYPE, function->returnType, function);
 		if (!returnTypeSymbol) {
 			error(function->declNode, std::format("Could not resolve return type '{}'", function->returnType));
 			continue;
@@ -392,7 +394,7 @@ void SymbolTable::resolve() {
 
 		// Resolve parameters
 		for (auto& [name, param] : function->parameters) {
-			auto paramTypeSymbol = resolveSymbol(SymbolKind::TYPE, param->type, function->parent);
+			auto paramTypeSymbol = resolveSymbol(SymbolKind::TYPE, param->type, function);
 			if (!paramTypeSymbol) {
 				error(param->declNode, std::format("Could not resolve parameter type '{}'", param->type));
 				continue;

@@ -1,6 +1,7 @@
 #include "expression_resolver.h"
 #include "symbol_table.h"
 #include "core/error_reporter.h"
+#include "common/logging.h"
 
 MRK_NS_BEGIN_MODULE(semantic)
 
@@ -13,6 +14,8 @@ void ExpressionResolver::resolve(ast::Program* program) {
 
 void ExpressionResolver::visit(Program* node) {
 	currentFile_ = node->sourceFile;
+
+	MRK_INFO("CURR=", currentFile_->filename);
 
 	for (const auto& stmt : node->statements) {
 		stmt->accept(*this);
@@ -42,7 +45,7 @@ void ExpressionResolver::visit(IdentifierExpr* node) {
 	// Wont be though when we implement function overloading
 
 	Symbol* symbol = nullptr;
-	
+
 	if (extraSearchScope_) {
 		symbol = symbolTable_->resolveSymbol(
 			SymbolKind::IDENTIFIER,
@@ -95,8 +98,12 @@ void ExpressionResolver::visit(TypeReferenceExpr* node) {
 	symbolTable_->setNodeResolvedSymbol(node, type);
 }
 
-void ExpressionResolver::visit(CallExpr* node) {
+void ExpressionResolver::visit(CallExpr* node) { // TODO: refactor this
 	node->target->accept(*this);
+
+	for (const auto& genericArg : node->genericArgs) {
+		genericArg->accept(*this);
+	}
 
 	for (const auto& arg : node->arguments) {
 		arg->accept(*this);
@@ -118,8 +125,14 @@ void ExpressionResolver::visit(CallExpr* node) {
 		if (symbol && symbol->kind == SymbolKind::FUNCTION) {
 			auto funcSymbol = static_cast<FunctionSymbol*>(symbol);
 
-			// Check argument count
-			if (funcSymbol->parameters.size() != node->arguments.size()) {
+			// Check generic arguments
+			if (funcSymbol->genericParameters.size() != node->genericArgs.size()) {
+				symbolTable_->error(
+					node,
+					std::format("Function '{}' expects {} generic arguments but got {}",
+						identifier->name, funcSymbol->genericParameters.size(), node->genericArgs.size()));
+			}
+			else if (funcSymbol->parameters.size() != node->arguments.size()) {
 				symbolTable_->error(
 					node,
 					std::format("Function '{}' expects {} arguments but got {}",
@@ -141,7 +154,13 @@ void ExpressionResolver::visit(CallExpr* node) {
 			auto methodSymbol = static_cast<FunctionSymbol*>(symbol);
 
 			// Similar checks for method arguments
-			if (methodSymbol->parameters.size() != node->arguments.size()) {
+			if (methodSymbol->genericParameters.size() != node->genericArgs.size()) {
+				symbolTable_->error(
+					node,
+					std::format("Function '{}' expects {} generic arguments but got {}",
+						methodSymbol->name, methodSymbol->genericParameters.size(), node->genericArgs.size()));
+			}
+			else if (methodSymbol->parameters.size() != node->arguments.size()) {
 				symbolTable_->error(
 					node,
 					std::format("Method '{}' expects {} arguments but got {}",
@@ -397,18 +416,7 @@ void ExpressionResolver::visit(MemberAccessExpr* node) {
 	}
 
 	// Find the member in the target type
-	Symbol* memberSymbol = nullptr;
-
-	// For types, look up in the type's members
-	if (targetType->kind == SymbolKind::TYPE) {
-		memberSymbol = targetType->getMember(node->member->name);
-	}
-	// For namespaces, look up in the namespace's members
-	else if (targetSymbol->kind == SymbolKind::NAMESPACE) {
-		auto* ns = static_cast<const NamespaceSymbol*>(targetSymbol);
-		memberSymbol = ns->getMember(node->member->name);
-	}
-
+	Symbol* memberSymbol = targetType->getMember(node->member->name);
 	if (!memberSymbol) {
 		symbolTable_->error(
 			node->member.get(),
@@ -545,7 +553,7 @@ void ExpressionResolver::visit(VarDeclStmt* node) {
 			}
 
 			// Infer the variable type if not explicitly declared
-			if (!varType || 
+			if (!varType ||
 				varType == symbolTable_->getTypeSystem()->getBuiltinType(TypeKind::OBJECT)) {
 				varType = initType;
 
@@ -644,7 +652,11 @@ void ExpressionResolver::visit(LangBlockStmt* node) {}
 
 void ExpressionResolver::visit(AccessModifierStmt* node) {}
 
-void ExpressionResolver::visit(NamespaceDeclStmt* node) {}
+void ExpressionResolver::visit(NamespaceDeclStmt* node) {
+	if (node->body) {
+		node->body->accept(*this);
+	}
+}
 
 void ExpressionResolver::visit(DeclSpecStmt* node) {}
 

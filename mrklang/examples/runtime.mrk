@@ -1,7 +1,52 @@
-// Logging utils
+﻿// Runtime stuff
 
-use ppl::DETAIL;
-
-
-struct runtimehelper : mrkutils::xv {
+// Memory
+func alloc<T>() -> T {
+    __declspec(MAPPED) var<void*> ptr;
+    __cpp {
+        using TPTRLESS = std::remove_pointer<T*>;
+        ptr            = new TPTRLESS;
+        
+        return reinterpret_cast<T>(ptr);
+    }
 }
+
+func free(void* __ptr) {
+    __cpp {
+        delete __ptr;
+    }
+}
+
+func deref<T>(void* __ptr) -> T {
+    __declspec(MAPPED) var<T> res;
+    
+    __cpp {
+        res = *reinterpret_cast<T*>(__ptr);
+    }
+    
+    return res;
+}
+
+func setptr<T>(void* __ptr, T __value) {
+    __cpp {
+        *reinterpret_cast<T*>(__ptr) = __value;
+    }
+}
+
+// IO
+func writeInt(int __msg) {
+    __cpp {
+        std::cout << __msg << std::endl;
+    }
+}
+
+func writeStr(string __msg) {
+    __cpp {
+        std::cout << __msg << std::endl;
+    }
+}
+
+class Array {
+    var<void*> data;
+}
+

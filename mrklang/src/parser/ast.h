@@ -136,7 +136,7 @@ struct TypeReferenceExpr : ExprNode { // INT***[][]
 	int arrayRank;
 
 	// Look at: ExpressionResolver::visit(VarDeclStmt* node)
-	TypeReferenceExpr(Token start) : ExprNode(start) {}
+	TypeReferenceExpr(Token start) : ExprNode(start), arrayRank(0), pointerRank(0) {}
 
 	TypeReferenceExpr(Token start, Vec<UniquePtr<IdentifierExpr>> identifiers, Vec<UniquePtr<TypeReferenceExpr>> genericArgs, int pointerRank, int arrayRank)
 		: ExprNode(Move(start)), identifiers(Move(identifiers)), genericArgs(Move(genericArgs)), pointerRank(pointerRank), arrayRank(arrayRank) {}
@@ -150,9 +150,10 @@ struct TypeReferenceExpr : ExprNode { // INT***[][]
 struct CallExpr : ExprNode {
 	UniquePtr<ExprNode> target;
 	Vec<UniquePtr<ExprNode>> arguments;
+	Vec<UniquePtr<TypeReferenceExpr>> genericArgs;
 
-	CallExpr(Token&& start, UniquePtr<ExprNode>&& target, Vec<UniquePtr<ExprNode>>&& arguments)
-		: ExprNode(Move(start)), target(Move(target)), arguments(Move(arguments)) {}
+	CallExpr(Token&& start, UniquePtr<ExprNode>&& target, Vec<UniquePtr<ExprNode>>&& arguments, Vec<UniquePtr<TypeReferenceExpr>>&& genericArgs)
+		: ExprNode(Move(start)), target(Move(target)), arguments(Move(arguments)), genericArgs(Move(genericArgs)) {}
 
 	Str toString() const override;
 	void accept(ASTVisitor& visitor) override;
@@ -320,14 +321,17 @@ struct FuncDeclStmt : StmtNode {
 	Vec<UniquePtr<ParamDeclStmt>> parameters;
 	UniquePtr<TypeReferenceExpr> returnType;
 	UniquePtr<BlockStmt> body;
+	Vec<UniquePtr<IdentifierExpr>> genericParams;
 
 	FuncDeclStmt(
 		Token&& start,
 		UniquePtr<IdentifierExpr>&& name,
 		Vec<UniquePtr<ParamDeclStmt>>&& parameters,
 		UniquePtr<TypeReferenceExpr>&& returnType,
-		UniquePtr<BlockStmt>&& body)
-		: StmtNode(Move(start)), name(Move(name)), parameters(Move(parameters)), returnType(Move(returnType)), body(Move(body)) {}
+		UniquePtr<BlockStmt>&& body,
+		Vec<UniquePtr<IdentifierExpr>>&& genericParams)
+		: StmtNode(Move(start)), name(Move(name)), parameters(Move(parameters)), returnType(Move(returnType)), 
+		  body(Move(body)), genericParams(Move(genericParams)) {}
 
 	Str getSignature(bool withReturnType = true) const;
 	Str toString() const override;

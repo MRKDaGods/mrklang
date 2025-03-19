@@ -230,9 +230,14 @@ void MetadataWriter::generateTypeDefintions() {
 			static_cast<uint32_t>(type->resolver.baseTypes.size() - 1) : 0;
 
 		// Other type properties
-		typeDef.flags = detail::hasFlag(type->kind, SymbolKind::CLASS) ?
-			static_cast<TypeFlags>(1) :
-			static_cast<TypeFlags>(0);
+		TypeFlags flags = static_cast<TypeFlags>(0);
+		flags.isClass = detail::hasFlag(type->kind, SymbolKind::CLASS);
+		flags.isStruct = detail::hasFlag(type->kind, SymbolKind::STRUCT);
+		flags.isInterface = detail::hasFlag(type->kind, SymbolKind::INTERFACE);
+		flags.isEnum = detail::hasFlag(type->kind, SymbolKind::ENUM);
+		flags.isPrimitive = detail::hasFlag(type->kind, SymbolKind::PRIMITIVE_TYPE);
+
+		typeDef.flags = flags;
 
 		// Use index+1 as token (1-based)
 		typeDef.token = static_cast<uint32_t>(i + 1);
@@ -426,13 +431,7 @@ void MetadataWriter::generateImageDefinition() {
 	// Find entry point token if available
 	auto globalFunction = symbolTable_->getGlobalFunction();
 	if (globalFunction) {
-		auto it = std::find(symbolTable_->getFunctions().begin(), symbolTable_->getFunctions().end(), globalFunction);
-		if (it != symbolTable_->getFunctions().end()) {
-			imageDef.entryPointToken = static_cast<uint32_t>(std::distance(symbolTable_->getFunctions().begin(), it)) + 1;
-		}
-		else {
-			imageDef.entryPointToken = 0;
-		}
+		imageDef.entryPointToken = registration_->methodTokenMap.at(globalFunction);
 	}
 	else {
 		imageDef.entryPointToken = 0;

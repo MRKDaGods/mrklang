@@ -4,6 +4,7 @@
 #include "type_system/array_type.h"
 #include "type_system/field.h"
 #include "type_system/method.h"
+#include "type_system/type_registry.h"
 
 #include <iostream>
 #include <algorithm>
@@ -127,6 +128,22 @@ void Runtime::registerInternalCall(const Str& signature, InternalCall call) {
 	internalCalls_[signature] = call;
 }
 
+void Runtime::registerType(uint32_t typeToken, size_t size) {
+	if (!initialized_) {
+		MRK_ERROR("Cannot register type: Runtime not initialized");
+		return;
+	}
+	auto* type = getTypeRegistry().getTypeByToken(typeToken);
+	if (!type) {
+		MRK_ERROR("Type not found for token: {}", typeToken);
+		return;
+	}
+
+	if (auto* clazz = dynamic_cast<ClassType*>(type)) {
+		clazz->setSize(size);
+	}
+}
+
 void Runtime::registerNativeMethod(uint32_t methodToken, void* nativeMethod) {
 	if (!initialized_) {
 		MRK_ERROR("Cannot register native method: Runtime not initialized");
@@ -177,10 +194,114 @@ void Runtime::registerStaticFieldInit(uint32_t fieldToken, void* nativeMethod) {
 	field->setStaticInit(nativeMethod);
 }
 
+void Runtime::registerField(uint32_t fieldToken, size_t offset) {
+	if (!initialized_) {
+		MRK_ERROR("Cannot register field: Runtime not initialized");
+		return;
+	}
+
+	auto* field = getTypeRegistry().getFieldByToken(fieldToken);
+	if (!field) {
+		MRK_ERROR("Field not found for token: {}", fieldToken);
+		return;
+	}
+
+	field->setOffset(offset);
+}
+
+void* Runtime::createInstance(const Type* type) {
+	if (type->getSize()) {
+		auto instance = malloc(type->getSize());
+
+		// initialize fields
+		if (auto* clazz = dynamic_cast<const ClassType*>(type)) {
+			for (auto* field : clazz->getFields()) {
+				if (field->isStatic()) {
+					continue;
+				}
+
+				// For now, properly initialize string to an empty one
+				// and zero out everything else
+				if (field->getFieldType() == TypeRegistry::instance().getStringType()) {
+					#pragma warning(suppress: 6386)
+					auto newStr = new ((char*)instance + field->getOffset()) Str();
+				}
+				else {
+					auto sz = field->getFieldType()->getSize();
+					memset(field->getValue(instance), 0, sz);
+				}
+			}
+		}
+
+		instanceTable_[instance] = type;
+
+		return instance;
+	}
+
+	return nullptr;
+}
+
+void* Runtime::destroyInstance(void* instance) {
+	auto it = instanceTable_.find(instance);
+	if (it == instanceTable_.end()) {
+		MRK_ERROR("Instance not found in table");
+		return nullptr;
+	}
+
+	// Destruct types, for now only strings
+	// TODO: Impl object model w respective dtors
+	auto* type = it->second;
+	if (type == TypeRegistry::instance().getStringType()) {
+		auto* str = static_cast<Str*>(instance);
+		//str->~basic_string();
+		delete str;
+	}
+
+	instanceTable_.erase(it);
+	free(instance);
+}
+
 Str Runtime::getInternalCallSignature(const Method* method) const {
 	auto typeName = method->getEnclosingType()->getFullName();
 	std::replace(typeName.begin(), typeName.end(), ':', '_');
 	return typeName + "_" + method->getName();
+}
+
+namespace api {
+	using namespace runtime::type_system;
+
+	static Runtime& rt = Runtime::instance();
+	static TypeRegistry& ts = TypeRegistry::instance();
+	static MetadataLoader& ml = MetadataLoader::instance();
+
+	// Object
+	void* mrk_create_instance(const TypeDefinition* type) {
+		return Runtime::instance().createInstance(ts.getTypeByToken(type->token));
+	}
+
+	void mrk_destroy_instance(void* instance) {
+		Runtime::instance().destroyInstance(instance);
+	}
+
+	// Type
+	const TypeDefinition* mrk_get_type(const Str& fullName) {
+		return ml.findTypeDefinition(fullName);
+	}
+
+	// Field
+	const FieldDefinition* mrk_get_field(const TypeDefinition* type, const Str& name) {
+		return ml.findFieldDefinition(*type, name);
+	}
+
+	void* mrk_get_field_value(const FieldDefinition* field, void* instance) {
+		auto* f = ts.getFieldByToken(field->token);
+		return f->getValue(instance);
+	}
+
+	void mrk_set_field_value(const FieldDefinition* field, void* instance, void* value) {
+		auto* f = ts.getFieldByToken(field->token);
+		f->setValue(value, instance);
+	}
 }
 
 MRK_NS_END

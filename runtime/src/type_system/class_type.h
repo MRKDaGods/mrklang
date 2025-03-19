@@ -24,6 +24,8 @@ public:
 	bool isPrimitive() const override { return false; }
 	bool isArray() const override { return false; }
 
+	void setSize(size_t size) { size_ = size; }
+
 	void addField(Field* field) { fields_.push_back(field); }
 	void addMethod(Method* method) { methods_.push_back(method); }
 

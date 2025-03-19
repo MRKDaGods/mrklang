@@ -2,6 +2,8 @@
 
 #include "common/types.h"
 #include "semantic/symbol_table.h"
+
+#define MRK_COMPILER
 #include "mrk-metadata.h"
 
 #include <fstream>

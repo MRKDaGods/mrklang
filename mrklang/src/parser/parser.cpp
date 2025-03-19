@@ -175,6 +175,15 @@ UniquePtr<FuncDeclStmt> Parser::parseFunctionDecl() {
 	// Parse name
 	auto name = MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected function name"));
 
+	// Check for generics
+	Vec<UniquePtr<IdentifierExpr>> generics;
+	if (match(TokenType::OP_LT)) {
+		do {
+			generics.push_back(MakeUnique<IdentifierExpr>(consume(TokenType::IDENTIFIER, "Expected generic name")));
+		} while (match(TokenType::COMMA));
+		consume(TokenType::OP_GT, "Expected '>' after generics");
+	}
+
 	// Consume (
 	consume(TokenType::LPAREN, "Expected '(' after function name");
 
@@ -198,7 +207,7 @@ UniquePtr<FuncDeclStmt> Parser::parseFunctionDecl() {
 
 	// Parse body
 	auto body = parseBlock();
-	return MakeUnique<FuncDeclStmt>(Move(startToken), Move(name), Move(parameters), Move(returnType), Move(body));
+	return MakeUnique<FuncDeclStmt>(Move(startToken), Move(name), Move(parameters), Move(returnType), Move(body), Move(generics));
 }
 
 UniquePtr<TypeReferenceExpr> Parser::parseTypeReference() {
@@ -798,7 +807,7 @@ UniquePtr<ExprNode> Parser::parsePrimary() {
 			return parseNamespaceAccess(Move(identifier));
 		}
 
-		if (check(TokenType::LPAREN)) {
+		if (check(TokenType::LPAREN) || check(TokenType::OP_LT)) {
 			return parseFunctionCall(Move(identifier));
 		}
 
@@ -816,6 +825,14 @@ UniquePtr<ExprNode> Parser::parsePrimary() {
 UniquePtr<ExprNode> Parser::parseFunctionCall(UniquePtr<ExprNode> target) {
 	auto startToken = previous_;
 
+	Vec<UniquePtr<TypeReferenceExpr>> genericArgs;
+	if (match(TokenType::OP_LT)) {
+		do {
+			genericArgs.push_back(parseTypeReference());
+		} while (match(TokenType::COMMA));
+		consume(TokenType::OP_GT, "Expected '>' after generic arguments");
+	}
+
 	// Consume (
 	consume(TokenType::LPAREN, "Expected '(' after function name");
 
@@ -830,7 +847,7 @@ UniquePtr<ExprNode> Parser::parseFunctionCall(UniquePtr<ExprNode> target) {
 	// Consume )
 	consume(TokenType::RPAREN, "Expected ')' after arguments");
 
-	return MakeUnique<CallExpr>(Move(startToken), Move(target), Move(arguments));
+	return MakeUnique<CallExpr>(Move(startToken), Move(target), Move(arguments), Move(genericArgs));
 }
 
 UniquePtr<ExprNode> Parser::parseNamespaceAccess(UniquePtr<IdentifierExpr> identifier) {

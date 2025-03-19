@@ -61,8 +61,16 @@ public:
 
 		return it->second(args...);
 	}
+
+	template<typename T>
+	void registerAllocator(uint32_t typeToken) {
+		// Enta mot wla eh ya magnus
+	}
 	
 	// Runtime externals
+	// Type
+	void registerType(uint32_t typeToken, size_t size);
+
 	// Method
 	void registerNativeMethod(uint32_t methodToken, void* nativeMethod);
 	
@@ -70,11 +78,16 @@ public:
 	void registerStaticField(uint32_t fieldToken, void* nativeField, void* staticInit);
 	void registerNativeField(uint32_t fieldToken, void* nativeField);
 	void registerStaticFieldInit(uint32_t fieldToken, void* nativeMethod);
+	void registerField(uint32_t fieldToken, size_t offset);
+
+	void* createInstance(const Type* type);
+	void* destroyInstance(void* instance);
 
 private:
 	bool initialized_ = false;
 	RuntimeOptions options_;
 	Dict<Str, InternalCall> internalCalls_;
+	Dict<void*, const Type*> instanceTable_;
 
     Runtime() = default;
     ~Runtime() = default;

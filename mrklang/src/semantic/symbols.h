@@ -124,6 +124,41 @@ struct NamespaceSymbol : Symbol {
 	}
 };
 
+struct TypeSymbol : Symbol {
+	Vec<Str> baseTypes;
+	bool isGenericParameter;
+
+	DECLARE_RESOLVABLE_MEMBERS(Vec<const TypeSymbol*> baseTypes;);
+
+	TypeSymbol(const SymbolKind& kind, Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode, bool isGenericParameter = false)
+		: Symbol(kind, Move(name), parent, declNode), baseTypes(Move(baseTypes)), isGenericParameter(isGenericParameter) {}
+};
+
+struct ClassSymbol : TypeSymbol {
+	ClassSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
+		: TypeSymbol(SymbolKind::CLASS, Move(name), Move(baseTypes), parent, declNode) {}
+};
+
+struct StructSymbol : TypeSymbol {
+	StructSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
+		: TypeSymbol(SymbolKind::STRUCT, Move(name), Move(baseTypes), parent, declNode) {}
+};
+
+struct InterfaceSymbol : TypeSymbol {
+	InterfaceSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
+		: TypeSymbol(SymbolKind::INTERFACE, Move(name), Move(baseTypes), parent, declNode) {}
+};
+
+struct EnumSymbol : TypeSymbol {
+	EnumSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
+		: TypeSymbol(SymbolKind::ENUM, Move(name), Move(baseTypes), parent, declNode) {}
+};
+
+struct GenericParameterSymbol : TypeSymbol {
+	GenericParameterSymbol(Str name, Symbol* parent, ASTNode* declNode)
+		: TypeSymbol(SymbolKind::TYPE, Move(name), Vec<Str>(), parent, declNode, true) {}
+};
+
 struct VariableSymbol : Symbol {
 	Str type;
 
@@ -149,51 +184,36 @@ struct FunctionSymbol : Symbol {
 	Str returnType;
 	ParameterDict parameters; // name, type
 	bool isGlobal;
+	Vec<UniquePtr<GenericParameterSymbol>> genericParameters;
 
 	DECLARE_RESOLVABLE_MEMBERS(const TypeSymbol* returnType;);
 
 	FunctionSymbol(Str name, Str returnType, ParameterDict&& parameters, bool isGlobal,
-		Symbol* parent, ASTNode* declNode)
+		Vec<UniquePtr<GenericParameterSymbol>>&& genericParameters, Symbol* parent, ASTNode* declNode)
 		: Symbol(SymbolKind::FUNCTION, Move(name), parent, declNode),
-		returnType(Move(returnType)), parameters(Move(parameters)), isGlobal(isGlobal) {}
+		returnType(Move(returnType)), parameters(Move(parameters)), isGlobal(isGlobal), genericParameters(Move(genericParameters)) {}
 
 	virtual Symbol* getMember(const Str& name) const override {
-		auto it = parameters.find(name);
-		if (it != parameters.end()) {
-			return it->second.get();
+		if (!genericParameters.empty()) {
+			// ngl too lazy to impl using a dict
+			auto it = std::find_if(genericParameters.begin(), genericParameters.end(), [name](const auto& param) {
+				return param->name == name;
+			});
+
+			if (it != genericParameters.end()) {
+				return it->get();
+			}
+		}
+
+		if (!parameters.empty()) {
+			auto it = parameters.find(name);
+			if (it != parameters.end()) {
+				return it->second.get();
+			}
 		}
 
 		return Symbol::getMember(name);
 	}
-};
-
-struct TypeSymbol : Symbol {
-	Vec<Str> baseTypes;
-
-	DECLARE_RESOLVABLE_MEMBERS(Vec<const TypeSymbol*> baseTypes;);
-
-	TypeSymbol(const SymbolKind& kind, Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
-		: Symbol(kind, Move(name), parent, declNode), baseTypes(Move(baseTypes)) {}
-};
-
-struct ClassSymbol : TypeSymbol {
-	ClassSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
-		: TypeSymbol(SymbolKind::CLASS, Move(name), Move(baseTypes), parent, declNode) {}
-};
-
-struct StructSymbol : TypeSymbol {
-	StructSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
-		: TypeSymbol(SymbolKind::STRUCT, Move(name), Move(baseTypes), parent, declNode) {}
-};
-
-struct InterfaceSymbol : TypeSymbol {
-	InterfaceSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
-		: TypeSymbol(SymbolKind::INTERFACE, Move(name), Move(baseTypes), parent, declNode) {}
-};
-
-struct EnumSymbol : TypeSymbol {
-	EnumSymbol(Str name, Vec<Str>&& baseTypes, Symbol* parent, ASTNode* declNode)
-		: TypeSymbol(SymbolKind::ENUM, Move(name), Move(baseTypes), parent, declNode) {}
 };
 
 struct EnumMemberSymbol : Symbol {

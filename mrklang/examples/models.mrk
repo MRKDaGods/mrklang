@@ -1,0 +1,13 @@
+﻿namespace mrk {
+    namespace models {
+        class User {
+            var<string> first_name;
+            var<string> last_name;
+        }
+        
+        class Company {
+            var<string> name;
+            var<int> age;
+        } 
+    }
+}

@@ -3,6 +3,7 @@
 #include "common/declspecs.h"
 
 #include <algorithm>
+#include <ranges>
 
 MRK_NS_BEGIN_MODULE(codegen)
 
@@ -88,7 +89,7 @@ Str CodeGenerator::getReferenceTypeName(const TypeSymbol* type) const {
 	// Ptr for reference types
 	// Normal for value types
 	Str result = it->second;
-	if (detail::hasFlag(type->kind, SymbolKind::CLASS | SymbolKind::INTERFACE)) {
+	if (!type->isGenericParameter && detail::hasFlag(type->kind, SymbolKind::CLASS | SymbolKind::INTERFACE)) {
 		result += "*";
 	}
 
@@ -135,7 +136,7 @@ void CodeGenerator::generateType(const TypeSymbol* type) {
 		else if (member->kind == SymbolKind::FUNCTION) {
 			// Generate function declaration
 			generateFunctionDeclaration(static_cast<const FunctionSymbol*>(member.get()), false);
-			writeLine(";");
+			writeLine<false>(";");
 		}
 	}
 	indentLevel_--;
@@ -147,15 +148,41 @@ void CodeGenerator::generateFunctionDeclaration(const FunctionSymbol* function, 
 	// Generate function declaration
 	writeLine("// Function: ", function->qualifiedName, ", Token: ", metadataRegistration_->methodTokenMap.at(function));
 
-	Str params = utils::formatCollection(function->parameters, ", ", [&](const auto& param) {
-		auto generatedParamName = utils::concat(param.second->name, "_", (uintptr_t)param.second.get());
-		nameMap_[param.second.get()] = generatedParamName;
+	if (!function->genericParameters.empty()) {
+		write("template<");
+		write(utils::formatCollection(function->genericParameters, ", ", [&](const auto& param) {
+			auto unmangledName = param->name;
+			nameMap_[param.get()] = unmangledName;
+
+			return utils::concat("typename ", unmangledName);
+		}));
+
+		writeLine<false>(">");
+	}
+
+
+	Vec<FunctionParameterSymbol*> params;
+	std::transform(function->parameters.begin(), function->parameters.end(), std::back_inserter(params),
+		[](const auto& pair) { return pair.second.get(); });
+
+	Str paramsStr = utils::formatCollection(params, ", ", [&](const auto& param) {
+		// Do not mangle param names if they start with __
+		auto generatedParamName = param->name.starts_with("__") ? 
+			param->name : utils::concat(param->name, "_", (uintptr_t)param);
+
+		nameMap_[param] = generatedParamName;
 
 		if (paramNames) {
 			paramNames->push_back(generatedParamName);
 		}
 
-		return utils::concat(getReferenceTypeName(param.second->resolver.type), ' ', generatedParamName);
+		// if param type is generic, pass as is
+		auto typeStr = getReferenceTypeName(param->resolver.type);
+		if (param->resolver.type->isGenericParameter) {
+			typeStr = param->resolver.type->name;
+		}
+
+		return utils::concat(typeStr, ' ', generatedParamName);
 	});
 
 	auto enclosingType = static_cast<TypeSymbol*>(symbolTable_->findAncestorOfKind(function, SymbolKind::TYPE));
@@ -165,7 +192,7 @@ void CodeGenerator::generateFunctionDeclaration(const FunctionSymbol* function, 
 	if (!function->isGlobal && !detail::isSTATIC(function->accessModifier)) {
 		
 		auto instanceParam = utils::concat(getReferenceTypeName(enclosingType), " __instance");
-		params = params.empty() ? instanceParam : utils::concat(instanceParam, ", ", params);
+		paramsStr = paramsStr.empty() ? instanceParam : utils::concat(instanceParam, ", ", paramsStr);
 	}
 	
 	auto generatedName = getMappedName(function);
@@ -177,7 +204,12 @@ void CodeGenerator::generateFunctionDeclaration(const FunctionSymbol* function, 
 		write("static ");
 	}
 
-	write(getReferenceTypeName(function->resolver.returnType), ' ', generatedName, '(', params, ")");
+	auto returnTypeName = getReferenceTypeName(function->resolver.returnType);
+	if (function->resolver.returnType->isGenericParameter) {
+		returnTypeName = function->resolver.returnType->name;
+	}
+
+	write(returnTypeName, ' ', generatedName, '(', paramsStr, ")");
 }
 
 void CodeGenerator::generateFunction(const FunctionSymbol* function) {
@@ -205,6 +237,9 @@ void CodeGenerator::generateFunction(const FunctionSymbol* function) {
 		
 		if (function->resolver.returnType->name != "void") {
 			write("return ");
+
+			// Gotta cast to the return type
+			write('(', getReferenceTypeName(function->resolver.returnType), ')');
 		}
 
 		write("MRK_INVOKE_ICALL(", metadataRegistration_->methodTokenMap.at(function));
@@ -230,7 +265,7 @@ void CodeGenerator::generateVariable(const VariableSymbol* variable, const TypeS
 	nameMap_[variable] = generatedName;
 
 	// Generate variable declaration
-	writeLine("// Variable: ", variable->name, ", Token: ", metadataRegistration_->fieldTokenMap.at(variable));
+	writeLine("\n// Variable: ", variable->name, ", Token: ", metadataRegistration_->fieldTokenMap.at(variable));
 
 	if (detail::isSTATIC(variable->accessModifier)) {
 		write("static ");
@@ -244,7 +279,7 @@ void CodeGenerator::generateVariable(const VariableSymbol* variable, const TypeS
 
 void CodeGenerator::generateStaticFieldInitializers() {
 	for (auto& [staticField, enclosingType, nativeInitializerMethod] : staticFields_) {
-		writeLine("// Static field initializer: ", staticField->qualifiedName);
+		writeLine("\n// Static field initializer: ", staticField->qualifiedName);
 
 		auto mappedTypeName = getReferenceTypeName(staticField->resolver.type);
 		
@@ -271,20 +306,38 @@ void CodeGenerator::generateMetadataRegistration() {
 	// Register native methods
 	writeLine("// Register native methods");
 	for (const auto& [method, token] : metadataRegistration_->methodTokenMap) {
+		// For not, dont register method if it has generic parameters
+		if (!method->genericParameters.empty()) {
+			continue;
+		}
+
 		auto enclosingType = static_cast<TypeSymbol*>(symbolTable_->findAncestorOfKind(method, SymbolKind::TYPE));
 		writeLine("MRK_RUNTIME_REGISTER_CODE(", token, ", ", 
 			getMappedName(enclosingType), "::", getMappedName(method), ");");
 	}
 
 	// Register types
-	writeLine("// Register types");
+	writeLine("\n// Register types");
 
 	for (const auto& [type, token] : metadataRegistration_->typeTokenMap) {
 		writeLine("MRK_RUNTIME_REGISTER_TYPE(", token, ", ", getMappedName(type), ");");
 	}
 
+	writeLine("\n// Register fields");
+	// Register fields
+	for (const auto& [field, token] : metadataRegistration_->fieldTokenMap) {
+		if (detail::isSTATIC(field->accessModifier)) continue;
+
+		auto enclosingType = static_cast<TypeSymbol*>(symbolTable_->findAncestorOfKind(field, SymbolKind::TYPE));
+		writeLine("MRK_RUNTIME_REGISTER_FIELD(", token, ", offsetof(", getMappedName(enclosingType), ", ", getMappedName(field), "));");
+	}
+
 	// Register static fields
-	writeLine("// Register static fields");
+
+	// Until we actually implement a full object model
+	// lets just initialize static fields in the global function
+
+	writeLine("\n// Register static fields");
 	for (const auto& staticField : staticFields_) {
 		auto token = metadataRegistration_->fieldTokenMap.at(staticField.variable);
 		auto mappedTypeName = getMappedName(staticField.enclosingType);
@@ -292,6 +345,7 @@ void CodeGenerator::generateMetadataRegistration() {
 
 		// Token - Native Field - Static Init
 		writeLine("MRK_RUNTIME_REGISTER_STATIC_FIELD(", token, ", ", mappedTypeName, "::", mappedFieldName, ", ", staticField.nativeInitializerMethod, ");");
+		writeLine(mappedTypeName, "::", mappedFieldName, " = ", staticField.nativeInitializerMethod, "();");
 	}
 
 	indentLevel_--;

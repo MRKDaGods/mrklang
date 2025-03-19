@@ -63,7 +63,6 @@ int Core::build() {
 
 	// Print symbol table
 	symbolTable_.dump();
-	symbolTable_.resolve();
 
 	if (errorReporter_.hasErrors()) {
 		MRK_ERROR("\033[47;30mCompilation failed due to linking errors.\033[0m");

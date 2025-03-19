@@ -69,6 +69,10 @@ void SymbolVisitor::visit(CallExpr* node) {
 		node->target->accept(*this);
 	}
 
+	for (const auto& genericArg : node->genericArgs) {
+		genericArg->accept(*this);
+	}
+
 	for (const auto& arg : node->arguments) {
 		arg->accept(*this);
 	}
@@ -234,6 +238,26 @@ void SymbolVisitor::visit(ParamDeclStmt* node) {
 void SymbolVisitor::visit(FuncDeclStmt* node) {
 	preprocessNode(node);
 
+	// Begin with generic params
+	Vec<UniquePtr<GenericParameterSymbol>> genericParams;
+	if (!node->genericParams.empty()) {
+		for (const auto& param : node->genericParams) {
+			// Theyre an identifier anyway
+			param->accept(*this);
+
+			auto genericParamSymbol = MakeUnique<GenericParameterSymbol>(
+				param->name,
+				nullptr,
+				param.get()
+			);
+
+			// Mark resolved as well
+			symbolTable_->setNodeResolvedSymbol(param.get(), genericParamSymbol.get());
+
+			genericParams.push_back(Move(genericParamSymbol));
+		}
+	}
+
 	// Collect parameters
 	bool hasVarargs = false; // Varargs must be last parameter
 
@@ -294,6 +318,7 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 		node->returnType ? node->returnType->getTypeName() : "void",
 		Move(params),
 		isGlobal,
+		Move(genericParams),
 		currentScope_,
 		node
 	);
@@ -306,8 +331,15 @@ void SymbolVisitor::visit(FuncDeclStmt* node) {
 	auto funcPtr = funcSymbol.get();
 
 	// update params parent
+	for (auto& param : funcPtr->genericParameters) {
+		param->parent = funcPtr;
+	}
+
 	for (auto& param : funcPtr->parameters) {
 		param.second->parent = funcPtr;
+
+		// Update parameters' scope so that they're able to resolve generic parameters
+		symbolTable_->setNodeScope(param.second->declNode, funcPtr);
 	}
 
 	currentScope_->members[node->name->name] = Move(funcSymbol);
@@ -574,10 +606,10 @@ void SymbolVisitor::visit(EnumDeclStmt* node) {
 		enumSymbol->members[Move(memberName)] = Move(memberSymbol);
 	}
 
-	currentScope_->members[node->name->name] = Move(enumSymbol);
-
 	// Add to type list
 	symbolTable_->addType(static_cast<TypeSymbol*>(enumSymbol.get()));
+
+	currentScope_->members[node->name->name] = Move(enumSymbol);
 }
 
 void SymbolVisitor::visit(TypeDeclStmt* node) {
